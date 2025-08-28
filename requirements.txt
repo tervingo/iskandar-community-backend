@@ -1,0 +1,10 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+motor==3.3.1
+pymongo==4.5.0
+pydantic==2.4.2
+pydantic-settings==2.0.3
+python-socketio==5.9.0
+python-multipart==0.0.6
+cloudinary==1.36.0
+python-dotenv==1.0.0
