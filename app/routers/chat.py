@@ -27,7 +27,7 @@ async def get_recent_messages(limit: int = 50):
 async def create_message(message_data: ChatMessageCreate):
     collection = get_collection("chat_messages")
     
-    message_dict = message_data.dict()
+    message_dict = message_data.model_dump()
     message_dict["created_at"] = datetime.utcnow()
     
     result = await collection.insert_one(message_dict)
