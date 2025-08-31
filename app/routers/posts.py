@@ -12,7 +12,8 @@ async def get_all_posts():
     collection = get_collection("posts")
     posts = []
     async for post in collection.find().sort("created_at", -1):
-        # Convert ObjectId to string for the response
+        # Convert ObjectId to string and map _id to id
+        post["id"] = str(post["_id"])
         post["_id"] = str(post["_id"])
         posts.append(PostResponse(**post))
     return posts
@@ -28,7 +29,8 @@ async def get_post(post_id: str):
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
     
-    # Convert ObjectId to string for the response
+    # Convert ObjectId to string and map _id to id
+    post["id"] = str(post["_id"])
     post["_id"] = str(post["_id"])
     return PostResponse(**post)
 
@@ -43,7 +45,8 @@ async def create_post(post_data: PostCreate):
     result = await collection.insert_one(post_dict)
     created_post = await collection.find_one({"_id": result.inserted_id})
     
-    # Convert ObjectId to string for the response
+    # Convert ObjectId to string and map _id to id
+    created_post["id"] = str(created_post["_id"])
     created_post["_id"] = str(created_post["_id"])
     return PostResponse(**created_post)
 
@@ -66,7 +69,8 @@ async def update_post(post_id: str, post_data: PostUpdate):
         raise HTTPException(status_code=404, detail="Post not found")
     
     updated_post = await collection.find_one({"_id": ObjectId(post_id)})
-    # Convert ObjectId to string for the response
+    # Convert ObjectId to string and map _id to id
+    updated_post["id"] = str(updated_post["_id"])
     updated_post["_id"] = str(updated_post["_id"])
     return PostResponse(**updated_post)
 

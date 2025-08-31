@@ -42,7 +42,7 @@ class PostUpdate(BaseModel):
 class PostResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     
-    id: str = Field(alias="_id")
+    id: str
     title: str
     content: str
     author_name: str
