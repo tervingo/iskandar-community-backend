@@ -36,7 +36,7 @@ async def get_post(post_id: str):
 async def create_post(post_data: PostCreate):
     collection = get_collection("posts")
     
-    post_dict = post_data.dict()
+    post_dict = post_data.model_dump()
     post_dict["created_at"] = datetime.utcnow()
     post_dict["updated_at"] = datetime.utcnow()
     
@@ -54,7 +54,7 @@ async def update_post(post_id: str, post_data: PostUpdate):
     
     collection = get_collection("posts")
     
-    update_data = {k: v for k, v in post_data.dict().items() if v is not None}
+    update_data = {k: v for k, v in post_data.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.utcnow()
     
     result = await collection.update_one(
