@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import List
 from bson import ObjectId
+from datetime import datetime
 from app.models.comment import CommentModel, CommentCreate, CommentResponse
 from app.database import get_collection
 
@@ -34,8 +35,9 @@ async def create_comment(post_id: str, comment_data: CommentCreate):
     
     collection = get_collection("comments")
     
-    comment_dict = comment_data.dict()
+    comment_dict = comment_data.model_dump()
     comment_dict["post_id"] = ObjectId(post_id)
+    comment_dict["created_at"] = datetime.utcnow()
     
     result = await collection.insert_one(comment_dict)
     created_comment = await collection.find_one({"_id": result.inserted_id})
