@@ -6,7 +6,7 @@ import socketio
 
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins=['http://localhost:3000', 'http://localhost:5173']
+    cors_allowed_origins=['http://localhost:3000', 'http://localhost:5173', 'https://iskandaria.netlify.app']
 )
 
 app = FastAPI(
@@ -17,7 +17,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "https://iskandaria.netlify.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
