@@ -24,7 +24,7 @@ class CommentCreate(BaseModel):
 class CommentResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     
-    id: str = Field(alias="_id")
+    id: str
     post_id: str
     author_name: str
     content: str

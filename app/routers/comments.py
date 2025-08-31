@@ -14,6 +14,10 @@ async def get_comments_for_post(post_id: str):
     collection = get_collection("comments")
     comments = []
     async for comment in collection.find({"post_id": ObjectId(post_id)}).sort("created_at", 1):
+        # Convert ObjectId to string and map _id to id
+        comment["id"] = str(comment["_id"])
+        comment["_id"] = str(comment["_id"])
+        comment["post_id"] = str(comment["post_id"])
         comments.append(CommentResponse(**comment))
     return comments
 
@@ -35,6 +39,11 @@ async def create_comment(post_id: str, comment_data: CommentCreate):
     
     result = await collection.insert_one(comment_dict)
     created_comment = await collection.find_one({"_id": result.inserted_id})
+    
+    # Convert ObjectId to string and map _id to id
+    created_comment["id"] = str(created_comment["_id"])
+    created_comment["_id"] = str(created_comment["_id"])
+    created_comment["post_id"] = str(created_comment["post_id"])
     
     return CommentResponse(**created_comment)
 
