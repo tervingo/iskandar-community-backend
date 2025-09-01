@@ -71,7 +71,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     
     # Verify user still exists and is active
     users_collection = get_collection("users")
-    user = await users_collection.find_one({"email": token_data.email, "is_active": True})
+    user = await users_collection.find_one({"_id": ObjectId(token_data.user_id), "is_active": True})
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -98,10 +98,10 @@ async def get_current_admin_user(current_user: TokenData = Depends(get_current_a
         )
     return current_user
 
-async def authenticate_user(email: str, password: str) -> Optional[dict]:
+async def authenticate_user(name: str, password: str) -> Optional[dict]:
     """Authenticate user credentials"""
     users_collection = get_collection("users")
-    user = await users_collection.find_one({"email": email})
+    user = await users_collection.find_one({"name": name})
     
     if not user:
         return None

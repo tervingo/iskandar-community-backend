@@ -57,7 +57,7 @@ class UserResponse(BaseModel):
     updated_at: datetime
 
 class UserLogin(BaseModel):
-    email: EmailStr = Field(..., description="Email for login")
+    name: str = Field(..., min_length=1, max_length=50, description="Name for login")
     password: str = Field(..., description="Password")
 
 class UserProfile(BaseModel):
