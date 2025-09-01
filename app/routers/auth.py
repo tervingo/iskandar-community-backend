@@ -15,68 +15,18 @@ from datetime import datetime
 
 router = APIRouter()
 
-@router.post("/login-test")
-async def login_test():
-    """Test endpoint to verify server is reachable"""
-    print("=== LOGIN TEST ENDPOINT HIT ===")
-    return {"message": "Login test endpoint reached successfully"}
-
-@router.post("/login-debug")
-async def login_debug(request: Request):
-    """Debug endpoint to see raw request data"""
-    try:
-        # Get raw body
-        body = await request.body()
-        print(f"Raw request body: {body}")
-        
-        # Get headers
-        headers = dict(request.headers)
-        print(f"Request headers: {headers}")
-        
-        # Try to parse JSON
-        try:
-            json_data = json.loads(body)
-            print(f"Parsed JSON: {json_data}")
-        except json.JSONDecodeError as e:
-            print(f"JSON parse error: {e}")
-            return {"error": "Invalid JSON", "raw_body": body.decode('utf-8', errors='replace')}
-        
-        # Try to validate as UserLogin
-        try:
-            user_login = UserLogin(**json_data)
-            print(f"UserLogin validation successful: name='{user_login.name}', password_len={len(user_login.password)}")
-            return {"message": "Validation successful", "data": json_data}
-        except Exception as e:
-            print(f"UserLogin validation error: {e}")
-            return {"error": f"Validation failed: {str(e)}", "data": json_data}
-            
-    except Exception as e:
-        print(f"Debug endpoint error: {e}")
-        return {"error": f"Debug error: {str(e)}"}
-
-@router.post("/login-raw")
-async def login_raw(data: Dict[str, Any]):
-    """Debug endpoint to see raw login data"""
-    print(f"Raw login data received: {data}")
-    return {"message": "Raw data received", "data": data}
 
 @router.post("/login")
 async def login(user_credentials: UserLogin):
     """Authenticate user and return JWT token"""
     try:
-        print("=== LOGIN ENDPOINT REACHED ===")
-        print(f"Received login request - name: '{user_credentials.name}', password length: {len(user_credentials.password)}")
-        print(f"UserLogin model validation passed successfully")
-        
         user = await authenticate_user(user_credentials.name, user_credentials.password)
         if not user:
-            print(f"Authentication failed for user: '{user_credentials.name}'")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect name or password"
             )
         
-        print(f"Authentication successful for user: '{user['name']}'")
         access_token = create_user_token(user)
         
         response_data = {
@@ -91,14 +41,11 @@ async def login(user_credentials: UserLogin):
                 "is_active": user.get("is_active", True)
             }
         }
-        print(f"Login successful, returning response for user: {user['name']}")
         return response_data
         
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        print(f"Unexpected error in login endpoint: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during login"
