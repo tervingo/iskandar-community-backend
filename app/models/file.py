@@ -33,7 +33,7 @@ class FileCreate(BaseModel):
 class FileResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     
-    id: str = Field(alias="_id")
+    id: str
     filename: str
     original_name: str
     file_type: str

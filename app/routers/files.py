@@ -29,7 +29,8 @@ async def get_all_files():
     )
     
     async for file_doc in collection.find().sort("uploaded_at", -1):
-        # Convert ObjectId to string for the response
+        # Convert ObjectId to string and map _id to id
+        file_doc["id"] = str(file_doc["_id"])
         file_doc["_id"] = str(file_doc["_id"])
         
         # Note: Don't automatically change URLs for existing files as they may not exist at the new path
@@ -74,13 +75,14 @@ async def upload_file(
         )
         
         collection = get_collection("files")
-        file_dict = file_data.dict()
+        file_dict = file_data.model_dump()
         file_dict["uploaded_at"] = datetime.utcnow()
         
         result = await collection.insert_one(file_dict)
         created_file = await collection.find_one({"_id": result.inserted_id})
         
-        # Convert ObjectId to string for the response
+        # Convert ObjectId to string and map _id to id
+        created_file["id"] = str(created_file["_id"])
         created_file["_id"] = str(created_file["_id"])
         return FileResponse(**created_file)
         
@@ -98,7 +100,8 @@ async def get_file(file_id: str):
     if not file_doc:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Convert ObjectId to string for the response
+    # Convert ObjectId to string and map _id to id
+    file_doc["id"] = str(file_doc["_id"])
     file_doc["_id"] = str(file_doc["_id"])
     return FileResponse(**file_doc)
 
