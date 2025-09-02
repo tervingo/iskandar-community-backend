@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List
 from bson import ObjectId
 from app.models.post import PostModel, PostCreate, PostUpdate, PostResponse
+from app.models.user import TokenData
 from app.database import get_collection
+from app.auth import get_current_active_user
 from datetime import datetime
 
 router = APIRouter()
@@ -75,15 +77,28 @@ async def update_post(post_id: str, post_data: PostUpdate):
     return PostResponse(**updated_post)
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_post(post_id: str):
+async def delete_post(post_id: str, current_user: TokenData = Depends(get_current_active_user)):
     if not ObjectId.is_valid(post_id):
         raise HTTPException(status_code=400, detail="Invalid post ID format")
     
     collection = get_collection("posts")
-    result = await collection.delete_one({"_id": ObjectId(post_id)})
     
-    if result.deleted_count == 0:
+    # First check if post exists and get its details
+    post = await collection.find_one({"_id": ObjectId(post_id)})
+    if not post:
         raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Check if current user is the author or an admin
+    post_author_name = post.get("author_name")
+    
+    # Check authorization: admin can delete any post, regular users can only delete their own posts
+    if current_user.role != "admin" and post_author_name != current_user.name:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own posts"
+        )
+    
+    result = await collection.delete_one({"_id": ObjectId(post_id)})
     
     # Also delete related comments
     comments_collection = get_collection("comments")
