@@ -15,20 +15,24 @@ class FileModel(BaseModel):
     filename: str = Field(..., min_length=1)
     original_name: str = Field(..., min_length=1)
     file_type: str = Field(..., min_length=1)
-    file_size: int = Field(..., gt=0)
+    file_size: int = Field(..., ge=0)  # Changed to allow 0 for URLs
     cloudinary_url: str = Field(..., min_length=1)
     uploaded_by: str = Field(..., min_length=1, max_length=50)
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
     description: Optional[str] = Field(None, max_length=500)
+    source_type: str = Field(default="upload")  # "upload" or "url"
+    original_url: Optional[str] = Field(None)  # Store original URL if source_type is "url"
 
 class FileCreate(BaseModel):
     filename: str = Field(..., min_length=1)
     original_name: str = Field(..., min_length=1)
     file_type: str = Field(..., min_length=1)
-    file_size: int = Field(..., gt=0)
+    file_size: int = Field(..., ge=0)  # Allow 0 for URLs
     cloudinary_url: str = Field(..., min_length=1)
     uploaded_by: str = Field(..., min_length=1, max_length=50)
     description: Optional[str] = Field(None, max_length=500)
+    source_type: str = Field(default="upload")
+    original_url: Optional[str] = Field(None)
 
 class FileResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -42,3 +46,10 @@ class FileResponse(BaseModel):
     uploaded_by: str
     uploaded_at: datetime
     description: Optional[str]
+    source_type: str
+    original_url: Optional[str]
+
+class URLCreate(BaseModel):
+    url: str = Field(..., min_length=1)
+    uploaded_by: str = Field(..., min_length=1, max_length=50)
+    description: Optional[str] = Field(None, max_length=500)
