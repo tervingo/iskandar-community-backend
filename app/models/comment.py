@@ -21,6 +21,9 @@ class CommentCreate(BaseModel):
     author_name: str = Field(..., min_length=1, max_length=50)
     content: str = Field(..., min_length=1, max_length=1000)
 
+class CommentUpdate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=1000)
+
 class CommentResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     
