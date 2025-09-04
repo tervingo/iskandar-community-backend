@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import connect_to_mongo, close_mongo_connection
-from app.routers import posts, comments, chat, files, auth
+from app.routers import posts, comments, chat, files, auth, categories
 import socketio
 
 sio = socketio.AsyncServer(
@@ -40,6 +40,7 @@ async def health_check():
     return {"status": "healthy"}
 
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
+app.include_router(categories.router, prefix="/categories", tags=["categories"])
 app.include_router(posts.router, prefix="/posts", tags=["posts"])
 app.include_router(comments.router, prefix="/comments", tags=["comments"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])

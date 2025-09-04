@@ -9,14 +9,39 @@ from datetime import datetime
 
 router = APIRouter()
 
+async def populate_category_name(post):
+    """Helper function to populate category name"""
+    if post.get("category_id"):
+        categories_collection = get_collection("categories")
+        category = await categories_collection.find_one({"_id": ObjectId(post["category_id"])})
+        if category:
+            post["category_name"] = category["name"]
+        else:
+            post["category_name"] = "Unknown Category"
+    else:
+        post["category_name"] = None
+    return post
+
 @router.get("/", response_model=List[PostResponse])
-async def get_all_posts():
+async def get_all_posts(category_id: str = None):
     collection = get_collection("posts")
     posts = []
-    async for post in collection.find().sort("created_at", -1):
+    
+    # Build query filter
+    query = {}
+    if category_id:
+        if not ObjectId.is_valid(category_id):
+            raise HTTPException(status_code=400, detail="Invalid category ID format")
+        query["category_id"] = category_id
+    
+    async for post in collection.find(query).sort("created_at", -1):
         # Convert ObjectId to string and map _id to id
         post["id"] = str(post["_id"])
         post["_id"] = str(post["_id"])
+        
+        # Populate category name
+        post = await populate_category_name(post)
+        
         posts.append(PostResponse(**post))
     return posts
 
@@ -34,6 +59,10 @@ async def get_post(post_id: str):
     # Convert ObjectId to string and map _id to id
     post["id"] = str(post["_id"])
     post["_id"] = str(post["_id"])
+    
+    # Populate category name
+    post = await populate_category_name(post)
+    
     return PostResponse(**post)
 
 @router.post("/", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
@@ -41,6 +70,17 @@ async def create_post(post_data: PostCreate):
     collection = get_collection("posts")
     
     post_dict = post_data.model_dump()
+    
+    # Validate category_id if provided
+    if post_dict.get("category_id"):
+        if not ObjectId.is_valid(post_dict["category_id"]):
+            raise HTTPException(status_code=400, detail="Invalid category ID format")
+        
+        categories_collection = get_collection("categories")
+        category = await categories_collection.find_one({"_id": ObjectId(post_dict["category_id"]), "is_active": True})
+        if not category:
+            raise HTTPException(status_code=400, detail="Category not found or inactive")
+    
     post_dict["created_at"] = datetime.utcnow()
     post_dict["updated_at"] = datetime.utcnow()
     
@@ -50,6 +90,10 @@ async def create_post(post_data: PostCreate):
     # Convert ObjectId to string and map _id to id
     created_post["id"] = str(created_post["_id"])
     created_post["_id"] = str(created_post["_id"])
+    
+    # Populate category name
+    created_post = await populate_category_name(created_post)
+    
     return PostResponse(**created_post)
 
 @router.put("/{post_id}", response_model=PostResponse)
@@ -60,6 +104,17 @@ async def update_post(post_id: str, post_data: PostUpdate):
     collection = get_collection("posts")
     
     update_data = {k: v for k, v in post_data.model_dump().items() if v is not None}
+    
+    # Validate category_id if provided
+    if "category_id" in update_data and update_data["category_id"]:
+        if not ObjectId.is_valid(update_data["category_id"]):
+            raise HTTPException(status_code=400, detail="Invalid category ID format")
+        
+        categories_collection = get_collection("categories")
+        category = await categories_collection.find_one({"_id": ObjectId(update_data["category_id"]), "is_active": True})
+        if not category:
+            raise HTTPException(status_code=400, detail="Category not found or inactive")
+    
     update_data["updated_at"] = datetime.utcnow()
     
     result = await collection.update_one(
@@ -74,6 +129,10 @@ async def update_post(post_id: str, post_data: PostUpdate):
     # Convert ObjectId to string and map _id to id
     updated_post["id"] = str(updated_post["_id"])
     updated_post["_id"] = str(updated_post["_id"])
+    
+    # Populate category name
+    updated_post = await populate_category_name(updated_post)
+    
     return PostResponse(**updated_post)
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)

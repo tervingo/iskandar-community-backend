@@ -26,6 +26,7 @@ class PostModel(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     content: str = Field(..., min_length=1)
     author_name: str = Field(..., min_length=1, max_length=50)
+    category_id: Optional[str] = Field(None, description="Category ID")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -33,10 +34,12 @@ class PostCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     content: str = Field(..., min_length=1)
     author_name: str = Field(..., min_length=1, max_length=50)
+    category_id: Optional[str] = Field(None, description="Category ID")
 
 class PostUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     content: Optional[str] = Field(None, min_length=1)
+    category_id: Optional[str] = Field(None, description="Category ID")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 class PostResponse(BaseModel):
@@ -46,5 +49,7 @@ class PostResponse(BaseModel):
     title: str
     content: str
     author_name: str
+    category_id: Optional[str]
+    category_name: Optional[str] = None  # Will be populated via lookup
     created_at: datetime
     updated_at: datetime
