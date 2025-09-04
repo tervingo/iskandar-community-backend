@@ -3,10 +3,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import connect_to_mongo, close_mongo_connection
 from app.routers import posts, comments, chat, files, auth, categories
 import socketio
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Get CORS origins from environment variable or use defaults
+cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173,https://iskandaria.netlify.app")
+cors_origins = [origin.strip() for origin in cors_origins_str.split(",")]
 
 sio = socketio.AsyncServer(
     async_mode='asgi',
-    cors_allowed_origins=['http://localhost:3000', 'http://localhost:5173', 'https://iskandaria.netlify.app']
+    cors_allowed_origins=cors_origins
 )
 
 app = FastAPI(
@@ -17,7 +25,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "https://iskandaria.netlify.app"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

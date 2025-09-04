@@ -15,6 +15,7 @@ async def get_categories():
     categories = []
     
     async for category in categories_collection.find({"is_active": True}).sort("name", 1):
+        category["id"] = str(category["_id"])
         category["_id"] = str(category["_id"])
         categories.append(CategoryResponse(**category))
     
@@ -27,6 +28,7 @@ async def get_all_categories(current_admin: TokenData = Depends(get_current_admi
     categories = []
     
     async for category in categories_collection.find().sort("name", 1):
+        category["id"] = str(category["_id"])
         category["_id"] = str(category["_id"])
         categories.append(CategoryResponse(**category))
     
@@ -44,6 +46,7 @@ async def get_category(category_id: str):
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     
+    category["id"] = str(category["_id"])
     category["_id"] = str(category["_id"])
     return CategoryResponse(**category)
 
@@ -72,6 +75,7 @@ async def create_category(
     result = await categories_collection.insert_one(category_dict)
     created_category = await categories_collection.find_one({"_id": result.inserted_id})
     
+    created_category["id"] = str(created_category["_id"])
     created_category["_id"] = str(created_category["_id"])
     return CategoryResponse(**created_category)
 
@@ -111,6 +115,7 @@ async def update_category(
         raise HTTPException(status_code=404, detail="Category not found")
     
     updated_category = await categories_collection.find_one({"_id": ObjectId(category_id)})
+    updated_category["id"] = str(updated_category["_id"])
     updated_category["_id"] = str(updated_category["_id"])
     return CategoryResponse(**updated_category)
 
