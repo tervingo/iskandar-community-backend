@@ -20,8 +20,21 @@ cloudinary.config(
     api_secret=settings.cloudinary_api_secret
 )
 
+async def populate_file_category_name(file_doc):
+    """Helper function to populate category name for files"""
+    if file_doc.get("category_id"):
+        categories_collection = get_collection("categories")
+        category = await categories_collection.find_one({"_id": ObjectId(file_doc["category_id"])})
+        if category:
+            file_doc["category_name"] = category["name"]
+        else:
+            file_doc["category_name"] = "Unknown Category"
+    else:
+        file_doc["category_name"] = None
+    return file_doc
+
 @router.get("/", response_model=List[FileResponse])
-async def get_all_files():
+async def get_all_files(category_id: str = None):
     collection = get_collection("files")
     files = []
     
@@ -31,10 +44,20 @@ async def get_all_files():
         {"$set": {"uploaded_at": datetime.utcnow()}}
     )
     
-    async for file_doc in collection.find().sort("uploaded_at", -1):
+    # Build query filter
+    query = {}
+    if category_id:
+        if not ObjectId.is_valid(category_id):
+            raise HTTPException(status_code=400, detail="Invalid category ID format")
+        query["category_id"] = category_id
+    
+    async for file_doc in collection.find(query).sort("uploaded_at", -1):
         # Convert ObjectId to string and map _id to id
         file_doc["id"] = str(file_doc["_id"])
         file_doc["_id"] = str(file_doc["_id"])
+        
+        # Populate category name
+        file_doc = await populate_file_category_name(file_doc)
         
         # Note: Don't automatically change URLs for existing files as they may not exist at the new path
         # Existing files uploaded as 'image' type should keep their original URLs to work
@@ -46,7 +69,8 @@ async def get_all_files():
 async def upload_file(
     file: UploadFile = File(...),
     uploaded_by: str = Form(...),
-    description: Optional[str] = Form(None)
+    description: Optional[str] = Form(None),
+    category_id: Optional[str] = Form(None)
 ):
     try:
         # Check if Cloudinary is configured
@@ -66,6 +90,16 @@ async def upload_file(
             folder="iskandar_community"
         )
         
+        # Validate category_id if provided
+        if category_id:
+            if not ObjectId.is_valid(category_id):
+                raise HTTPException(status_code=400, detail="Invalid category ID format")
+            
+            categories_collection = get_collection("categories")
+            category = await categories_collection.find_one({"_id": ObjectId(category_id), "is_active": True})
+            if not category:
+                raise HTTPException(status_code=400, detail="Category not found or inactive")
+        
         # Create file record
         file_data = FileCreate(
             filename=upload_result["public_id"],
@@ -74,7 +108,8 @@ async def upload_file(
             file_size=upload_result["bytes"],
             cloudinary_url=upload_result["secure_url"],
             uploaded_by=uploaded_by,
-            description=description
+            description=description,
+            category_id=category_id
         )
         
         collection = get_collection("files")
@@ -87,6 +122,10 @@ async def upload_file(
         # Convert ObjectId to string and map _id to id
         created_file["id"] = str(created_file["_id"])
         created_file["_id"] = str(created_file["_id"])
+        
+        # Populate category name
+        created_file = await populate_file_category_name(created_file)
+        
         return FileResponse(**created_file)
         
     except Exception as e:
@@ -106,6 +145,10 @@ async def get_file(file_id: str):
     # Convert ObjectId to string and map _id to id
     file_doc["id"] = str(file_doc["_id"])
     file_doc["_id"] = str(file_doc["_id"])
+    
+    # Populate category name
+    file_doc = await populate_file_category_name(file_doc)
+    
     return FileResponse(**file_doc)
 
 @router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -202,6 +245,16 @@ async def add_url(url_data: URLCreate):
         original_name = metadata.get('title') or parsed_url.path.split('/')[-1] or parsed_url.netloc
         if not original_name or original_name == '/':
             original_name = parsed_url.netloc
+        
+        # Validate category_id if provided
+        if url_data.category_id:
+            if not ObjectId.is_valid(url_data.category_id):
+                raise HTTPException(status_code=400, detail="Invalid category ID format")
+            
+            categories_collection = get_collection("categories")
+            category = await categories_collection.find_one({"_id": ObjectId(url_data.category_id), "is_active": True})
+            if not category:
+                raise HTTPException(status_code=400, detail="Category not found or inactive")
             
         # Create file record for URL
         file_data = FileCreate(
@@ -212,6 +265,7 @@ async def add_url(url_data: URLCreate):
             cloudinary_url=url_data.url,  # Store the original URL
             uploaded_by=url_data.uploaded_by,
             description=url_data.description,
+            category_id=url_data.category_id,
             source_type="url",
             original_url=url_data.url
         )
@@ -226,6 +280,10 @@ async def add_url(url_data: URLCreate):
         # Convert ObjectId to string and map _id to id
         created_file["id"] = str(created_file["_id"])
         created_file["_id"] = str(created_file["_id"])
+        
+        # Populate category name
+        created_file = await populate_file_category_name(created_file)
+        
         return FileResponse(**created_file)
         
     except Exception as e:

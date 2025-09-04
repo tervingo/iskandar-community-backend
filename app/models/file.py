@@ -20,6 +20,7 @@ class FileModel(BaseModel):
     uploaded_by: str = Field(..., min_length=1, max_length=50)
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
     description: Optional[str] = Field(None, max_length=500)
+    category_id: Optional[str] = Field(None, description="Category ID")
     source_type: str = Field(default="upload")  # "upload" or "url"
     original_url: Optional[str] = Field(None)  # Store original URL if source_type is "url"
 
@@ -31,6 +32,7 @@ class FileCreate(BaseModel):
     cloudinary_url: str = Field(..., min_length=1)
     uploaded_by: str = Field(..., min_length=1, max_length=50)
     description: Optional[str] = Field(None, max_length=500)
+    category_id: Optional[str] = Field(None, description="Category ID")
     source_type: str = Field(default="upload")
     original_url: Optional[str] = Field(None)
 
@@ -46,6 +48,8 @@ class FileResponse(BaseModel):
     uploaded_by: str
     uploaded_at: datetime
     description: Optional[str]
+    category_id: Optional[str]
+    category_name: Optional[str] = None  # Will be populated via lookup
     source_type: str
     original_url: Optional[str]
 
@@ -53,3 +57,4 @@ class URLCreate(BaseModel):
     url: str = Field(..., min_length=1)
     uploaded_by: str = Field(..., min_length=1, max_length=50)
     description: Optional[str] = Field(None, max_length=500)
+    category_id: Optional[str] = Field(None, description="Category ID")
