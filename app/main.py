@@ -56,6 +56,9 @@ app.include_router(files.router, prefix="/files", tags=["files"])
 
 socket_app = socketio.ASGIApp(sio, app)
 
+# Store online users
+online_users = {}
+
 @sio.event
 async def connect(sid, environ):
     print(f"Client {sid} connected")
@@ -63,7 +66,48 @@ async def connect(sid, environ):
 @sio.event
 async def disconnect(sid):
     print(f"Client {sid} disconnected")
+    # Remove user from online users if they were tracked
+    user_to_remove = None
+    for user_id, user_data in online_users.items():
+        if user_data.get('socket_id') == sid:
+            user_to_remove = user_id
+            break
+    
+    if user_to_remove:
+        del online_users[user_to_remove]
+        # Broadcast updated user list
+        await sio.emit('users_online_update', list(online_users.values()))
 
 @sio.event
 async def send_message(sid, data):
     await sio.emit('receive_message', data, skip_sid=sid)
+
+@sio.event
+async def user_online(sid, data):
+    """Handle user coming online"""
+    user_id = data.get('id')
+    user_name = data.get('name')
+    user_role = data.get('role')
+    
+    if user_id and user_name:
+        online_users[user_id] = {
+            'id': user_id,
+            'name': user_name,
+            'role': user_role,
+            'socket_id': sid
+        }
+        
+        # Broadcast updated user list to all clients
+        await sio.emit('users_online_update', list(online_users.values()))
+        print(f"User {user_name} is now online")
+
+@sio.event
+async def user_offline(sid, user_id):
+    """Handle user going offline"""
+    if user_id in online_users:
+        user_name = online_users[user_id]['name']
+        del online_users[user_id]
+        
+        # Broadcast updated user list to all clients
+        await sio.emit('users_online_update', list(online_users.values()))
+        print(f"User {user_name} went offline")
