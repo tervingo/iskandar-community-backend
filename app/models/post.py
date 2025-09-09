@@ -27,6 +27,8 @@ class PostModel(BaseModel):
     content: str = Field(..., min_length=1)
     author_name: str = Field(..., min_length=1, max_length=50)
     category_id: Optional[str] = Field(None, description="Category ID")
+    is_published: bool = Field(default=False, description="Whether the post is published or draft")
+    published_at: Optional[datetime] = Field(None, description="When the post was published")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -35,12 +37,17 @@ class PostCreate(BaseModel):
     content: str = Field(..., min_length=1)
     author_name: str = Field(..., min_length=1, max_length=50)
     category_id: Optional[str] = Field(None, description="Category ID")
+    is_published: bool = Field(default=False, description="Whether to publish immediately or save as draft")
 
 class PostUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     content: Optional[str] = Field(None, min_length=1)
     category_id: Optional[str] = Field(None, description="Category ID")
+    is_published: Optional[bool] = Field(None, description="Whether to publish or unpublish the post")
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class PostPublish(BaseModel):
+    is_published: bool = Field(..., description="Whether to publish or unpublish the post")
 
 class PostResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -51,5 +58,7 @@ class PostResponse(BaseModel):
     author_name: str
     category_id: Optional[str]
     category_name: Optional[str] = None  # Will be populated via lookup
+    is_published: bool = Field(default=False, description="Whether the post is published (defaults to False for legacy posts)")
+    published_at: Optional[datetime] = Field(default=None, description="When the post was published (None for unpublished posts)")
     created_at: datetime
     updated_at: datetime
