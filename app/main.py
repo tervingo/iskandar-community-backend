@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import connect_to_mongo, close_mongo_connection
-from app.routers import posts, comments, chat, files, auth, categories
+from app.routers import posts, comments, chat, files, auth, categories, notifications
 import socketio
 import os
 from dotenv import load_dotenv
@@ -53,6 +53,7 @@ app.include_router(posts.router, prefix="/posts", tags=["posts"])
 app.include_router(comments.router, prefix="/comments", tags=["comments"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
 app.include_router(files.router, prefix="/files", tags=["files"])
+app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 
 socket_app = socketio.ASGIApp(sio, app)
 

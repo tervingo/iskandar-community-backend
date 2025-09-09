@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ site_name }}{% endblock %}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 30px;
+        }
+        .content h2 {
+            color: #2c3e50;
+            margin-top: 0;
+            font-size: 20px;
+        }
+        .content p {
+            color: #555;
+            margin-bottom: 15px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .button:hover {
+            background-color: #2980b9;
+        }
+        .footer {
+            background-color: #ecf0f1;
+            padding: 20px;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 12px;
+        }
+        .footer a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .post-preview {
+            background-color: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .badge {
+            background-color: #e74c3c;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        .meta {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{% block header_title %}{{ site_name }}{% endblock %}</h1>
+        </div>
+        
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+        
+        <div class="footer">
+            {% block footer %}
+            <p>Has recibido este email porque eres miembro de {{ site_name }}.</p>
+            <p>
+                <a href="{{ unsubscribe_url }}">Gestionar preferencias de email</a>
+            </p>
+            <p>&copy; {{ "now"|strftime("%Y") }} {{ site_name }}. Todos los derechos reservados.</p>
+            {% endblock %}
+        </div>
+    </div>
+</body>
+</html>

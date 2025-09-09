@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, BackgroundTasks
 from typing import List
 from bson import ObjectId
 from app.models.post import PostModel, PostCreate, PostUpdate, PostResponse, PostPublish
 from app.models.user import TokenData
 from app.database import get_collection
 from app.auth import get_current_active_user
+from app.services.email_service import email_service
 from datetime import datetime
 
 router = APIRouter()
@@ -72,7 +73,10 @@ async def get_post(post_id: str, current_user: TokenData = Depends(get_current_a
     return PostResponse(**post)
 
 @router.post("/", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
-async def create_post(post_data: PostCreate):
+async def create_post(
+    post_data: PostCreate,
+    background_tasks: BackgroundTasks
+):
     collection = get_collection("posts")
     
     post_dict = post_data.model_dump()
@@ -105,6 +109,10 @@ async def create_post(post_data: PostCreate):
     
     # Populate category name
     created_post = await populate_category_name(created_post)
+    
+    # Send email notification if post is published
+    if created_post.get("is_published", False):
+        background_tasks.add_task(email_service.send_new_post_notification, created_post)
     
     return PostResponse(**created_post)
 
@@ -218,7 +226,12 @@ async def get_my_drafts(current_user: TokenData = Depends(get_current_active_use
     return posts
 
 @router.put("/{post_id}/publish", response_model=PostResponse)
-async def publish_post(post_id: str, publish_data: PostPublish, current_user: TokenData = Depends(get_current_active_user)):
+async def publish_post(
+    post_id: str, 
+    publish_data: PostPublish, 
+    background_tasks: BackgroundTasks,
+    current_user: TokenData = Depends(get_current_active_user)
+):
     """Publish or unpublish a post"""
     if not ObjectId.is_valid(post_id):
         raise HTTPException(status_code=400, detail="Invalid post ID format")
@@ -261,5 +274,12 @@ async def publish_post(post_id: str, publish_data: PostPublish, current_user: To
     
     # Populate category name
     updated_post = await populate_category_name(updated_post)
+    
+    # Send email notification if post is newly published
+    was_published = post.get("is_published", False)
+    is_now_published = updated_post.get("is_published", False)
+    
+    if not was_published and is_now_published:
+        background_tasks.add_task(email_service.send_new_post_notification, updated_post)
     
     return PostResponse(**updated_post)

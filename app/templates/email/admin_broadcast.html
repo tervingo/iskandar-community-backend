@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{{ subject }} - {{ site_name }}{% endblock %}
+
+{% block header_title %}📢 Anuncio Importante{% endblock %}
+
+{% block content %}
+<h2>{{ subject }}</h2>
+
+<p>Hola miembro de {{ site_name }},</p>
+
+<p>{{ sender_name }} ha enviado el siguiente mensaje a toda la comunidad:</p>
+
+<div class="post-preview">
+    <div class="badge">ANUNCIO</div>
+    <div style="margin-top: 15px; line-height: 1.6;">
+        {{ message|nl2br }}
+    </div>
+</div>
+
+<div class="meta" style="text-align: center; margin: 25px 0;">
+    <strong>Enviado por:</strong> {{ sender_name }}
+    <br>
+    <strong>Fecha:</strong> {{ "now"|strftime("%d/%m/%Y a las %H:%M") }}
+</div>
+
+<p style="text-align: center;">
+    <a href="{{ site_url | default('https://iskandaria.netlify.app') }}" class="button">🏠 Visitar {{ site_name }}</a>
+</p>
+
+<hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+<p style="font-size: 14px; color: #888;">
+    📧 Este es un anuncio administrativo de {{ site_name }}. 
+    Puedes gestionar tus preferencias de notificaciones en tu 
+    <a href="{{ unsubscribe_url }}" style="color: #3498db;">perfil de usuario</a>.
+</p>
+{% endblock %}

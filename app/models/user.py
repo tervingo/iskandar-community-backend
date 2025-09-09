@@ -1,13 +1,19 @@
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from bson import ObjectId
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict
 from enum import Enum
 from app.models.post import PyObjectId
 
 class UserRole(str, Enum):
     ADMIN = "admin"
     NORMAL = "normal"
+
+class EmailPreferences(BaseModel):
+    new_posts: bool = Field(default=True, description="Receive notifications for new posts")
+    admin_notifications: bool = Field(default=True, description="Receive admin broadcast messages")
+    comment_replies: bool = Field(default=True, description="Receive notifications for comment replies")
+    weekly_digest: bool = Field(default=False, description="Receive weekly activity digest")
 
 class UserModel(BaseModel):
     model_config = ConfigDict(
@@ -24,6 +30,7 @@ class UserModel(BaseModel):
     is_active: bool = Field(default=True, description="Account status")
     avatar: Optional[str] = Field(None, description="Avatar image URL")
     phone: Optional[str] = Field(None, max_length=20, description="Phone number")
+    email_preferences: EmailPreferences = Field(default_factory=EmailPreferences, description="Email notification preferences")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -41,6 +48,7 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = Field(None)
     avatar: Optional[str] = Field(None)
     phone: Optional[str] = Field(None, max_length=20)
+    email_preferences: Optional[EmailPreferences] = Field(None)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 class UserResponse(BaseModel):
@@ -53,6 +61,7 @@ class UserResponse(BaseModel):
     is_active: bool
     avatar: Optional[str]
     phone: Optional[str]
+    email_preferences: Optional[EmailPreferences]
     created_at: datetime
     updated_at: datetime
 
