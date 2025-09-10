@@ -49,6 +49,7 @@ class EmailService:
         
         # Add custom filters
         self.jinja_env.filters['nl2br'] = self._nl2br_filter
+        self.jinja_env.filters['strftime'] = self._strftime_filter
     
     def _nl2br_filter(self, text: str) -> str:
         """Convert newlines to HTML line breaks"""
@@ -56,6 +57,28 @@ class EmailService:
             return ""
         from markupsafe import Markup
         return Markup(text.replace('\n', '<br>').replace('\r\n', '<br>'))
+    
+    def _strftime_filter(self, datetime_obj, format_string: str = '%Y-%m-%d %H:%M:%S') -> str:
+        """Format datetime objects using strftime"""
+        if not datetime_obj:
+            return ""
+        try:
+            if hasattr(datetime_obj, 'strftime'):
+                return datetime_obj.strftime(format_string)
+            # Handle string dates
+            from datetime import datetime
+            if isinstance(datetime_obj, str):
+                # Try to parse common date formats
+                for fmt in ['%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%d %H:%M:%S']:
+                    try:
+                        parsed_date = datetime.strptime(datetime_obj, fmt)
+                        return parsed_date.strftime(format_string)
+                    except ValueError:
+                        continue
+            return str(datetime_obj)
+        except Exception as e:
+            logger.warning(f"Error formatting date {datetime_obj}: {e}")
+            return str(datetime_obj)
     
     def _render_template(self, template_name: str, context: Dict[str, Any]) -> str:
         """Render email template with context"""
@@ -94,6 +117,8 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to send email: {e}")
             logger.error(f"SMTP config - Server: {self.conf.MAIL_SERVER}, Port: {self.conf.MAIL_PORT}, Username: {self.conf.MAIL_USERNAME}")
+            logger.error(f"SMTP settings - STARTTLS: {self.conf.MAIL_STARTTLS}, SSL_TLS: {self.conf.MAIL_SSL_TLS}, USE_CREDENTIALS: {self.conf.USE_CREDENTIALS}")
+            logger.error(f"Password length: {len(self.conf.MAIL_PASSWORD) if self.conf.MAIL_PASSWORD else 0} characters")
             return False
     
     async def get_subscribed_users(self, notification_type: str = "new_posts") -> List[Dict[str, Any]]:
