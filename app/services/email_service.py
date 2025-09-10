@@ -13,17 +13,28 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     def __init__(self):
+        # Validate required environment variables
+        mail_username = os.getenv("MAIL_USERNAME", "").strip()
+        mail_password = os.getenv("MAIL_PASSWORD", "").strip()
+        
+        if not mail_username or not mail_password:
+            logger.warning("Email credentials not configured. Email functionality will be disabled.")
+            self.email_enabled = False
+        else:
+            self.email_enabled = True
+            logger.info(f"Email service initialized with username: {mail_username}")
+        
         self.conf = ConnectionConfig(
-            MAIL_USERNAME=os.getenv("MAIL_USERNAME", ""),
-            MAIL_PASSWORD=os.getenv("MAIL_PASSWORD", ""),
-            MAIL_FROM=os.getenv("MAIL_FROM", "noreply@iskandar.com"),
+            MAIL_USERNAME=mail_username,
+            MAIL_PASSWORD=mail_password,
+            MAIL_FROM=os.getenv("MAIL_FROM", mail_username),
             MAIL_FROM_NAME=os.getenv("MAIL_FROM_NAME", "Comunidad Iskandar"),
             MAIL_PORT=int(os.getenv("MAIL_PORT", "587")),
             MAIL_SERVER=os.getenv("MAIL_SERVER", "smtp.gmail.com"),
             MAIL_STARTTLS=os.getenv("MAIL_STARTTLS", "True").lower() == "true",
             MAIL_SSL_TLS=os.getenv("MAIL_SSL_TLS", "False").lower() == "true",
-            USE_CREDENTIALS=os.getenv("USE_CREDENTIALS", "True").lower() == "true",
-            VALIDATE_CERTS=os.getenv("VALIDATE_CERTS", "True").lower() == "true"
+            USE_CREDENTIALS=True,
+            VALIDATE_CERTS=True
         )
         
         # Initialize FastMail
@@ -35,6 +46,16 @@ class EmailService:
             loader=FileSystemLoader(template_dir),
             autoescape=True
         )
+        
+        # Add custom filters
+        self.jinja_env.filters['nl2br'] = self._nl2br_filter
+    
+    def _nl2br_filter(self, text: str) -> str:
+        """Convert newlines to HTML line breaks"""
+        if not text:
+            return ""
+        from markupsafe import Markup
+        return Markup(text.replace('\n', '<br>').replace('\r\n', '<br>'))
     
     def _render_template(self, template_name: str, context: Dict[str, Any]) -> str:
         """Render email template with context"""
@@ -53,6 +74,10 @@ class EmailService:
         text_body: Optional[str] = None
     ) -> bool:
         """Send email to recipients"""
+        if not self.email_enabled:
+            logger.warning("Email service is disabled - credentials not configured")
+            return False
+            
         try:
             message = MessageSchema(
                 subject=subject,
@@ -68,6 +93,7 @@ class EmailService:
             
         except Exception as e:
             logger.error(f"Failed to send email: {e}")
+            logger.error(f"SMTP config - Server: {self.conf.MAIL_SERVER}, Port: {self.conf.MAIL_PORT}, Username: {self.conf.MAIL_USERNAME}")
             return False
     
     async def get_subscribed_users(self, notification_type: str = "new_posts") -> List[Dict[str, Any]]:
