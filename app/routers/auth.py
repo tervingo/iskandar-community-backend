@@ -243,6 +243,30 @@ async def update_user(
     
     users_collection = get_collection("users")
     
+    # Check if email already exists for a different user
+    if user_data.email:
+        existing_email = await users_collection.find_one({
+            "email": user_data.email,
+            "_id": {"$ne": ObjectId(user_id)}
+        })
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+    
+    # Check if name already exists for a different user
+    if user_data.name:
+        existing_name = await users_collection.find_one({
+            "name": user_data.name,
+            "_id": {"$ne": ObjectId(user_id)}
+        })
+        if existing_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Name already taken. Please choose a different name."
+            )
+    
     update_data = {k: v for k, v in user_data.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.utcnow()
     

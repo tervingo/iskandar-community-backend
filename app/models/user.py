@@ -44,6 +44,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=50)
+    email: Optional[EmailStr] = Field(None, description="Email address")
     role: Optional[UserRole] = Field(None)
     is_active: Optional[bool] = Field(None)
     avatar: Optional[str] = Field(None)
