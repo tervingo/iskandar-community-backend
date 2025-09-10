@@ -13,29 +13,53 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     def __init__(self):
-        # Validate required environment variables
+        # Check for SendGrid API key first, then fall back to SMTP credentials
+        sendgrid_api_key = os.getenv("SENDGRID_API_KEY", "").strip()
         mail_username = os.getenv("MAIL_USERNAME", "").strip()
         mail_password = os.getenv("MAIL_PASSWORD", "").strip()
         
-        if not mail_username or not mail_password:
-            logger.warning("Email credentials not configured. Email functionality will be disabled.")
-            self.email_enabled = False
-        else:
+        # Determine email provider and configuration
+        if sendgrid_api_key:
+            # Use SendGrid SMTP configuration
             self.email_enabled = True
-            logger.info(f"Email service initialized with username: {mail_username}")
-        
-        self.conf = ConnectionConfig(
-            MAIL_USERNAME=mail_username,
-            MAIL_PASSWORD=mail_password,
-            MAIL_FROM=os.getenv("MAIL_FROM", mail_username),
-            MAIL_FROM_NAME=os.getenv("MAIL_FROM_NAME", "Comunidad Iskandar"),
-            MAIL_PORT=int(os.getenv("MAIL_PORT", "587")),
-            MAIL_SERVER=os.getenv("MAIL_SERVER", "smtp.gmail.com"),
-            MAIL_STARTTLS=os.getenv("MAIL_STARTTLS", "True").lower() == "true",
-            MAIL_SSL_TLS=os.getenv("MAIL_SSL_TLS", "False").lower() == "true",
-            USE_CREDENTIALS=True,
-            VALIDATE_CERTS=True
-        )
+            self.provider = "sendgrid"
+            logger.info("Email service initialized with SendGrid SMTP")
+            
+            self.conf = ConnectionConfig(
+                MAIL_USERNAME="apikey",  # SendGrid uses literal string "apikey" as username
+                MAIL_PASSWORD=sendgrid_api_key,
+                MAIL_FROM=os.getenv("MAIL_FROM", os.getenv("MAIL_USERNAME", "noreply@example.com")),
+                MAIL_FROM_NAME=os.getenv("MAIL_FROM_NAME", "Comunidad Iskandar"),
+                MAIL_PORT=587,
+                MAIL_SERVER="smtp.sendgrid.net",
+                MAIL_STARTTLS=True,
+                MAIL_SSL_TLS=False,
+                USE_CREDENTIALS=True,
+                VALIDATE_CERTS=True
+            )
+        elif mail_username and mail_password:
+            # Use traditional SMTP configuration (Gmail, etc.)
+            self.email_enabled = True
+            self.provider = "smtp"
+            logger.info(f"Email service initialized with SMTP provider: {mail_username}")
+            
+            self.conf = ConnectionConfig(
+                MAIL_USERNAME=mail_username,
+                MAIL_PASSWORD=mail_password,
+                MAIL_FROM=os.getenv("MAIL_FROM", mail_username),
+                MAIL_FROM_NAME=os.getenv("MAIL_FROM_NAME", "Comunidad Iskandar"),
+                MAIL_PORT=int(os.getenv("MAIL_PORT", "587")),
+                MAIL_SERVER=os.getenv("MAIL_SERVER", "smtp.gmail.com"),
+                MAIL_STARTTLS=os.getenv("MAIL_STARTTLS", "True").lower() == "true",
+                MAIL_SSL_TLS=os.getenv("MAIL_SSL_TLS", "False").lower() == "true",
+                USE_CREDENTIALS=True,
+                VALIDATE_CERTS=True
+            )
+        else:
+            logger.warning("Email credentials not configured. Email functionality will be disabled.")
+            logger.warning("Please set either SENDGRID_API_KEY or MAIL_USERNAME/MAIL_PASSWORD environment variables.")
+            self.email_enabled = False
+            self.provider = "none"
         
         # Initialize FastMail
         self.fastmail = FastMail(self.conf)
@@ -115,10 +139,16 @@ class EmailService:
             return True
             
         except Exception as e:
-            logger.error(f"Failed to send email: {e}")
+            logger.error(f"Failed to send email using {self.provider}: {e}")
             logger.error(f"SMTP config - Server: {self.conf.MAIL_SERVER}, Port: {self.conf.MAIL_PORT}, Username: {self.conf.MAIL_USERNAME}")
             logger.error(f"SMTP settings - STARTTLS: {self.conf.MAIL_STARTTLS}, SSL_TLS: {self.conf.MAIL_SSL_TLS}, USE_CREDENTIALS: {self.conf.USE_CREDENTIALS}")
-            logger.error(f"Password length: {len(self.conf.MAIL_PASSWORD) if self.conf.MAIL_PASSWORD else 0} characters")
+            
+            if self.provider == "sendgrid":
+                logger.error(f"SendGrid API key length: {len(self.conf.MAIL_PASSWORD) if self.conf.MAIL_PASSWORD else 0} characters")
+                logger.error("Verify your SENDGRID_API_KEY is valid and has Mail Send permissions")
+            else:
+                logger.error(f"Password length: {len(self.conf.MAIL_PASSWORD) if self.conf.MAIL_PASSWORD else 0} characters")
+            
             return False
     
     async def get_subscribed_users(self, notification_type: str = "new_posts") -> List[Dict[str, Any]]:
