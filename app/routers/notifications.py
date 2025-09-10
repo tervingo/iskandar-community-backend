@@ -208,3 +208,184 @@ async def test_new_post_notification(
             "success": False,
             "message": f"Error sending test notification: {str(e)}"
         }
+
+@router.put("/admin/users/{user_id}/preferences", response_model=dict)
+async def update_user_email_preferences_admin(
+    user_id: str,
+    preferences: EmailPreferencesUpdate,
+    current_user: TokenData = Depends(get_current_active_user)
+):
+    """Update any user's email preferences (Admin only)"""
+    
+    # Check if user is admin
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can manage user email preferences"
+        )
+    
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+    
+    try:
+        collection = get_collection("users")
+        
+        # Check if target user exists
+        user = await collection.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Update only provided preferences
+        update_data = {}
+        if preferences.new_posts is not None:
+            update_data["email_preferences.new_posts"] = preferences.new_posts
+        if preferences.admin_notifications is not None:
+            update_data["email_preferences.admin_notifications"] = preferences.admin_notifications
+        if preferences.comment_replies is not None:
+            update_data["email_preferences.comment_replies"] = preferences.comment_replies
+        if preferences.weekly_digest is not None:
+            update_data["email_preferences.weekly_digest"] = preferences.weekly_digest
+        
+        if update_data:
+            result = await collection.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": update_data}
+            )
+            
+            if result.matched_count == 0:
+                raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get updated user data
+        updated_user = await collection.find_one({"_id": ObjectId(user_id)})
+        
+        return {
+            "success": True,
+            "message": f"Email preferences updated successfully for user {user.get('name', 'Unknown')}",
+            "user_id": user_id,
+            "user_name": user.get('name'),
+            "preferences": updated_user.get("email_preferences", {})
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update user email preferences: {str(e)}"
+        )
+
+@router.post("/admin/preferences/bulk-update")
+async def bulk_update_email_preferences(
+    request: dict,
+    current_user: TokenData = Depends(get_current_active_user)
+):
+    """Bulk update email preferences for multiple users (Admin only)"""
+    
+    # Check if user is admin
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can perform bulk operations"
+        )
+    
+    try:
+        user_ids = request.get("user_ids", [])
+        preferences = request.get("preferences", {})
+        
+        if not user_ids or not preferences:
+            raise HTTPException(
+                status_code=400, 
+                detail="user_ids and preferences are required"
+            )
+        
+        # Validate user IDs
+        valid_user_ids = []
+        for user_id in user_ids:
+            if ObjectId.is_valid(user_id):
+                valid_user_ids.append(ObjectId(user_id))
+        
+        if not valid_user_ids:
+            raise HTTPException(status_code=400, detail="No valid user IDs provided")
+        
+        collection = get_collection("users")
+        
+        # Build update data
+        update_data = {}
+        for key, value in preferences.items():
+            if key in ["new_posts", "admin_notifications", "comment_replies", "weekly_digest"]:
+                update_data[f"email_preferences.{key}"] = value
+        
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No valid preferences provided")
+        
+        # Perform bulk update
+        result = await collection.update_many(
+            {"_id": {"$in": valid_user_ids}},
+            {"$set": update_data}
+        )
+        
+        return {
+            "success": True,
+            "message": f"Email preferences updated for {result.modified_count} users",
+            "updated_count": result.modified_count,
+            "total_requested": len(user_ids)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to perform bulk update: {str(e)}"
+        )
+
+@router.get("/admin/users/preferences")
+async def get_all_user_preferences(
+    current_user: TokenData = Depends(get_current_active_user)
+):
+    """Get email preferences for all users (Admin only)"""
+    
+    # Check if user is admin
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can view all user preferences"
+        )
+    
+    try:
+        collection = get_collection("users")
+        users = []
+        
+        async for user in collection.find({"is_active": True}).sort("name", 1):
+            preferences = user.get("email_preferences", {})
+            # Set defaults if preferences don't exist
+            default_prefs = {
+                "new_posts": True,
+                "admin_notifications": True,
+                "comment_replies": True,
+                "weekly_digest": False
+            }
+            
+            for key, default_value in default_prefs.items():
+                if key not in preferences:
+                    preferences[key] = default_value
+            
+            users.append({
+                "id": str(user["_id"]),
+                "name": user["name"],
+                "email": user["email"],
+                "role": user.get("role", "normal"),
+                "preferences": preferences
+            })
+        
+        return {
+            "success": True,
+            "users": users,
+            "total_count": len(users)
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get user preferences: {str(e)}"
+        )
