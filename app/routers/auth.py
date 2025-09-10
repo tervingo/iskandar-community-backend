@@ -61,6 +61,17 @@ async def get_current_user_profile(current_user: TokenData = Depends(get_current
         raise HTTPException(status_code=404, detail="User not found")
     
     user["_id"] = str(user["_id"])
+    # Ensure required fields exist with defaults
+    user.setdefault("is_active", True)
+    user.setdefault("avatar", None)
+    user.setdefault("phone", None)
+    # Set default email preferences for existing users
+    user.setdefault("email_preferences", {
+        "new_posts": True,
+        "admin_notifications": True,
+        "comment_replies": True,
+        "weekly_digest": False
+    })
     return UserResponse(**user)
 
 @router.put("/me", response_model=UserResponse)
@@ -148,6 +159,13 @@ async def create_user(
     user_dict["is_active"] = True  # Force set instead of setdefault
     user_dict.setdefault("avatar", None)
     user_dict.setdefault("phone", None)
+    # Set default email preferences for new users
+    user_dict["email_preferences"] = {
+        "new_posts": True,
+        "admin_notifications": True,
+        "comment_replies": True,
+        "weekly_digest": False
+    }
     
     result = await users_collection.insert_one(user_dict)
     created_user = await users_collection.find_one({"_id": result.inserted_id})
@@ -170,6 +188,13 @@ async def get_all_users(
             user.setdefault("is_active", True)
             user.setdefault("avatar", None)
             user.setdefault("phone", None)
+            # Set default email preferences for existing users
+            user.setdefault("email_preferences", {
+                "new_posts": True,
+                "admin_notifications": True,
+                "comment_replies": True,
+                "weekly_digest": False
+            })
             users.append(UserResponse(**user))
         
         return users
@@ -193,6 +218,17 @@ async def get_user(
         raise HTTPException(status_code=404, detail="User not found")
     
     user["_id"] = str(user["_id"])
+    # Ensure required fields exist with defaults
+    user.setdefault("is_active", True)
+    user.setdefault("avatar", None)
+    user.setdefault("phone", None)
+    # Set default email preferences for existing users
+    user.setdefault("email_preferences", {
+        "new_posts": True,
+        "admin_notifications": True,
+        "comment_replies": True,
+        "weekly_digest": False
+    })
     return UserResponse(**user)
 
 @router.put("/users/{user_id}", response_model=UserResponse)
