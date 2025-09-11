@@ -96,7 +96,8 @@ class EmailService:
         recipients: List[str],
         subject: str,
         html_body: str,
-        text_body: Optional[str] = None
+        text_body: Optional[str] = None,
+        reply_to: Optional[str] = None
     ) -> bool:
         """Send email to recipients"""
         if not self.email_enabled:
@@ -104,13 +105,23 @@ class EmailService:
             return False
             
         try:
-            message = MessageSchema(
-                subject=subject,
-                recipients=recipients,
-                body=text_body or html_body,
-                html=html_body,
-                subtype="html" if html_body else "plain"
-            )
+            # Set reply-to address from parameter or environment variable
+            reply_to_address = reply_to or os.getenv("MAIL_REPLY_TO")
+            
+            message_kwargs = {
+                "subject": subject,
+                "recipients": recipients,
+                "body": text_body or html_body,
+                "html": html_body,
+                "subtype": "html" if html_body else "plain"
+            }
+            
+            # Add reply-to header if specified
+            if reply_to_address:
+                message_kwargs["reply_to"] = [reply_to_address]
+                logger.info(f"Setting Reply-To: {reply_to_address}")
+            
+            message = MessageSchema(**message_kwargs)
             
             await self.fastmail.send_message(message)
             logger.info(f"Email sent successfully to {len(recipients)} recipients")
@@ -202,7 +213,8 @@ class EmailService:
                 success = await self.send_email(
                     recipients=batch,
                     subject=subject,
-                    html_body=html_body
+                    html_body=html_body,
+                    reply_to=os.getenv("MAIL_REPLY_TO")
                 )
                 
                 if not success:
@@ -269,7 +281,8 @@ class EmailService:
                 success = await self.send_email(
                     recipients=batch,
                     subject=f"📢 {subject}",
-                    html_body=html_body
+                    html_body=html_body,
+                    reply_to=os.getenv("MAIL_REPLY_TO")
                 )
                 
                 if success:
