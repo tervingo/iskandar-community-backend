@@ -105,24 +105,13 @@ class EmailService:
             return False
             
         try:
-            # Get reply-to address from parameter or environment variable
-            reply_to_address = reply_to or os.getenv("MAIL_REPLY_TO")
-            
-            message_kwargs = {
-                "subject": subject,
-                "recipients": recipients,
-                "body": text_body or html_body,
-                "html": html_body,
-                "subtype": "html" if html_body else "plain"
-            }
-            
-            # Add Reply-To using headers (MailChannels-compatible method)
-            if reply_to_address:
-                # Use headers instead of reply_to parameter for MailChannels compatibility
-                message_kwargs["headers"] = {"Reply-To": reply_to_address}
-                logger.info(f"Setting Reply-To header: {reply_to_address}")
-            
-            message = MessageSchema(**message_kwargs)
+            message = MessageSchema(
+                subject=subject,
+                recipients=recipients,
+                body=text_body or html_body,
+                html=html_body,
+                subtype="html" if html_body else "plain"
+            )
             
             await self.fastmail.send_message(message)
             logger.info(f"Email sent successfully to {len(recipients)} recipients")
@@ -214,8 +203,7 @@ class EmailService:
                 success = await self.send_email(
                     recipients=batch,
                     subject=subject,
-                    html_body=html_body,
-                    reply_to=os.getenv("MAIL_REPLY_TO")
+                    html_body=html_body
                 )
                 
                 if not success:
@@ -282,8 +270,7 @@ class EmailService:
                 success = await self.send_email(
                     recipients=batch,
                     subject=f"📢 {subject}",
-                    html_body=html_body,
-                    reply_to=os.getenv("MAIL_REPLY_TO")
+                    html_body=html_body
                 )
                 
                 if success:
