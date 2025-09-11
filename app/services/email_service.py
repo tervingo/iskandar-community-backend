@@ -105,8 +105,8 @@ class EmailService:
             return False
             
         try:
-            # Set reply-to address from parameter or environment variable
-            reply_to_address = reply_to or os.getenv("MAIL_REPLY_TO")
+            # Temporarily disable Reply-To to test MailChannels issue
+            # reply_to_address = reply_to or os.getenv("MAIL_REPLY_TO")
             
             message_kwargs = {
                 "subject": subject,
@@ -116,10 +116,10 @@ class EmailService:
                 "subtype": "html" if html_body else "plain"
             }
             
-            # Add reply-to header if specified
-            if reply_to_address:
-                message_kwargs["reply_to"] = [reply_to_address]
-                logger.info(f"Setting Reply-To: {reply_to_address}")
+            # Temporarily commenting out Reply-To header
+            # if reply_to_address:
+            #     message_kwargs["reply_to"] = [reply_to_address]
+            #     logger.info(f"Setting Reply-To: {reply_to_address}")
             
             message = MessageSchema(**message_kwargs)
             
