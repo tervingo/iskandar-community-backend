@@ -47,6 +47,40 @@ async def get_all_posts(category_id: str = None):
         posts.append(PostResponse(**post))
     return posts
 
+@router.get("/all", response_model=List[PostResponse])
+async def get_all_posts_including_drafts(
+    category_id: str = None,
+    include_unpublished: bool = False,
+    current_user: TokenData = Depends(get_current_active_user)
+):
+    """Get all posts, optionally including drafts (requires authentication)"""
+    collection = get_collection("posts")
+    posts = []
+    
+    # Build query filter
+    if include_unpublished:
+        # Include both published and unpublished posts
+        query = {}
+    else:
+        # Only published posts
+        query = {"is_published": True}
+        
+    if category_id:
+        if not ObjectId.is_valid(category_id):
+            raise HTTPException(status_code=400, detail="Invalid category ID format")
+        query["category_id"] = category_id
+    
+    async for post in collection.find(query).sort("updated_at", -1):
+        # Convert ObjectId to string and map _id to id
+        post["id"] = str(post["_id"])
+        post["_id"] = str(post["_id"])
+        
+        # Populate category name
+        post = await populate_category_name(post)
+        
+        posts.append(PostResponse(**post))
+    return posts
+
 @router.get("/{post_id}", response_model=PostResponse)
 async def get_post(post_id: str, current_user: TokenData = Depends(get_current_active_user)):
     if not ObjectId.is_valid(post_id):
@@ -193,40 +227,6 @@ async def delete_post(post_id: str, current_user: TokenData = Depends(get_curren
     # Also delete related comments
     comments_collection = get_collection("comments")
     await comments_collection.delete_many({"post_id": ObjectId(post_id)})
-
-@router.get("/all", response_model=List[PostResponse])
-async def get_all_posts_including_drafts(
-    category_id: str = None,
-    include_unpublished: bool = False,
-    current_user: TokenData = Depends(get_current_active_user)
-):
-    """Get all posts, optionally including drafts (requires authentication)"""
-    collection = get_collection("posts")
-    posts = []
-    
-    # Build query filter
-    if include_unpublished:
-        # Include both published and unpublished posts
-        query = {}
-    else:
-        # Only published posts
-        query = {"is_published": True}
-        
-    if category_id:
-        if not ObjectId.is_valid(category_id):
-            raise HTTPException(status_code=400, detail="Invalid category ID format")
-        query["category_id"] = category_id
-    
-    async for post in collection.find(query).sort("updated_at", -1):
-        # Convert ObjectId to string and map _id to id
-        post["id"] = str(post["_id"])
-        post["_id"] = str(post["_id"])
-        
-        # Populate category name
-        post = await populate_category_name(post)
-        
-        posts.append(PostResponse(**post))
-    return posts
 
 @router.get("/drafts/my", response_model=List[PostResponse])
 async def get_my_drafts(current_user: TokenData = Depends(get_current_active_user)):
