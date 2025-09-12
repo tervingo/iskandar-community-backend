@@ -184,9 +184,9 @@ class EmailService:
                 "post_author": post_data.get("author_name", ""),
                 "post_category": post_data.get("category_name", "Sin Categoría"),
                 "post_content_preview": post_data.get("content", "")[:200] + "..." if len(post_data.get("content", "")) > 200 else post_data.get("content", ""),
-                "post_url": f"{os.getenv('FRONTEND_URL', 'https://iskandaria.netlify.app')}/blog/{post_data.get('id')}",
+                "post_url": f"{os.getenv('FRONTEND_URL', 'https://yskandar.com')}/blog/{post_data.get('id')}",
                 "site_name": "Comunidad Iskandar",
-                "unsubscribe_url": f"{os.getenv('FRONTEND_URL', 'https://iskandaria.netlify.app')}/profile"
+                "unsubscribe_url": f"{os.getenv('FRONTEND_URL', 'https://yskandar.com')}/profile"
             }
             
             # Render email template
@@ -253,7 +253,7 @@ class EmailService:
                 "message": message,
                 "sender_name": sender_name,
                 "site_name": "Comunidad Iskandar",
-                "unsubscribe_url": f"{os.getenv('FRONTEND_URL', 'https://iskandaria.netlify.app')}/profile"
+                "unsubscribe_url": f"{os.getenv('FRONTEND_URL', 'https://yskandar.com')}/profile"
             }
             
             # Render email template

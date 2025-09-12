@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Get CORS origins from environment variable or use defaults
-cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173,https://iskandaria.netlify.app")
+cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173,https://yskandar.com")
 cors_origins = [origin.strip() for origin in cors_origins_str.split(",")]
 
 sio = socketio.AsyncServer(
