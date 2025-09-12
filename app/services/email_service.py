@@ -26,7 +26,7 @@ class EmailService:
                 MAIL_USERNAME=mail_username,
                 MAIL_PASSWORD=mail_password,
                 MAIL_FROM=os.getenv("MAIL_FROM", mail_username),
-                MAIL_FROM_NAME=os.getenv("MAIL_FROM_NAME", "Comunidad Iskandar"),
+                MAIL_FROM_NAME=os.getenv("MAIL_FROM_NAME", "Yskandar"),
                 MAIL_PORT=int(os.getenv("MAIL_PORT", "587")),
                 MAIL_SERVER=os.getenv("MAIL_SERVER", "smtp.gmail.com"),
                 MAIL_STARTTLS=os.getenv("MAIL_STARTTLS", "True").lower() == "true",
@@ -185,7 +185,7 @@ class EmailService:
                 "post_category": post_data.get("category_name", "Sin Categoría"),
                 "post_content_preview": post_data.get("content", "")[:200] + "..." if len(post_data.get("content", "")) > 200 else post_data.get("content", ""),
                 "post_url": f"{os.getenv('FRONTEND_URL', 'https://yskandar.com')}/blog/{post_data.get('id')}",
-                "site_name": "Comunidad Iskandar",
+                "site_name": "Yskandar",
                 "unsubscribe_url": f"{os.getenv('FRONTEND_URL', 'https://yskandar.com')}/profile"
             }
             
@@ -252,7 +252,7 @@ class EmailService:
                 "subject": subject,
                 "message": message,
                 "sender_name": sender_name,
-                "site_name": "Comunidad Iskandar",
+                "site_name": "Yskandar",
                 "unsubscribe_url": f"{os.getenv('FRONTEND_URL', 'https://yskandar.com')}/profile"
             }
             
