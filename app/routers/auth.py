@@ -11,7 +11,8 @@ from app.auth import (
     authenticate_user, create_user_token, hash_password, verify_password,
     get_current_active_user, get_current_admin_user
 )
-from datetime import datetime
+from datetime import datetime, timedelta
+from app.utils.presence import get_online_users, cleanup_offline_users, is_user_online
 
 router = APIRouter()
 
@@ -26,9 +27,16 @@ async def login(user_credentials: UserLogin):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect name or password"
             )
-        
+
+        # Update last_seen timestamp on login
+        users_collection = get_collection("users")
+        await users_collection.update_one(
+            {"_id": ObjectId(user["_id"])},
+            {"$set": {"last_seen": datetime.utcnow()}}
+        )
+
         access_token = create_user_token(user)
-        
+
         response_data = {
             "access_token": access_token,
             "token_type": "bearer",
@@ -42,13 +50,32 @@ async def login(user_credentials: UserLogin):
             }
         }
         return response_data
-        
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during login"
+        )
+
+@router.post("/heartbeat")
+async def heartbeat(current_user: TokenData = Depends(get_current_active_user)):
+    """Update user's last_seen timestamp for presence tracking"""
+    try:
+        users_collection = get_collection("users")
+        timestamp = datetime.utcnow()
+        result = await users_collection.update_one(
+            {"_id": ObjectId(current_user.user_id)},
+            {"$set": {"last_seen": timestamp}}
+        )
+        print(f"Heartbeat for user {current_user.user_id} - matched: {result.matched_count}, modified: {result.modified_count}, timestamp: {timestamp}")  # Debug log
+        return {"status": "success", "timestamp": timestamp}
+    except Exception as e:
+        print(f"Error in heartbeat: {e}")  # Debug log
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error updating presence"
         )
 
 @router.get("/me", response_model=UserResponse)
@@ -65,6 +92,7 @@ async def get_current_user_profile(current_user: TokenData = Depends(get_current
     user.setdefault("is_active", True)
     user.setdefault("avatar", None)
     user.setdefault("phone", None)
+    user.setdefault("last_seen", None)
     # Set default email preferences for existing users
     user.setdefault("email_preferences", {
         "new_posts": True,
@@ -222,6 +250,7 @@ async def get_user(
     user.setdefault("is_active", True)
     user.setdefault("avatar", None)
     user.setdefault("phone", None)
+    user.setdefault("last_seen", None)
     # Set default email preferences for existing users
     user.setdefault("email_preferences", {
         "new_posts": True,
@@ -337,3 +366,56 @@ async def toggle_user_status(
     
     action = "activated" if new_status else "deactivated"
     return {"message": f"User {action} successfully"}
+
+@router.get("/online-users")
+async def get_currently_online_users(current_user: TokenData = Depends(get_current_active_user)):
+    """Get list of currently online users"""
+    try:
+        online_users = await get_online_users()
+        print(f"Online users endpoint called - found {len(online_users)} users")  # Debug log
+        for user in online_users:
+            print(f"  - {user['name']} (last_seen: {user['last_seen']})")  # Debug log
+        return {"online_users": online_users, "count": len(online_users)}
+    except Exception as e:
+        print(f"Error in get_currently_online_users: {e}")  # Debug log
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching online users"
+        )
+
+@router.post("/cleanup-offline")
+async def cleanup_offline_users_endpoint(current_admin: TokenData = Depends(get_current_admin_user)):
+    """Cleanup offline users (Admin only)"""
+    try:
+        count = await cleanup_offline_users()
+        return {"message": f"Marked {count} users as offline"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error cleaning up offline users"
+        )
+
+@router.get("/debug-users")
+async def debug_users_presence(current_admin: TokenData = Depends(get_current_admin_user)):
+    """Debug endpoint to check all users and their last_seen status (Admin only)"""
+    try:
+        users_collection = get_collection("users")
+        threshold = datetime.utcnow() - timedelta(minutes=5)  # 5 minute threshold
+
+        debug_info = []
+        async for user in users_collection.find({}, {"name": 1, "last_seen": 1, "is_active": 1}):
+            debug_info.append({
+                "id": str(user["_id"]),
+                "name": user.get("name"),
+                "last_seen": user.get("last_seen"),
+                "is_active": user.get("is_active", True),
+                "is_online": user.get("last_seen") and user.get("last_seen") > threshold if user.get("last_seen") else False
+            })
+
+        return {
+            "threshold": threshold,
+            "current_time": datetime.utcnow(),
+            "users": debug_info
+        }
+    except Exception as e:
+        return {"error": str(e)}

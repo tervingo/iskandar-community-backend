@@ -31,6 +31,7 @@ class UserModel(BaseModel):
     avatar: Optional[str] = Field(None, description="Avatar image URL")
     phone: Optional[str] = Field(None, max_length=20, description="Phone number")
     email_preferences: EmailPreferences = Field(default_factory=EmailPreferences, description="Email notification preferences")
+    last_seen: Optional[datetime] = Field(None, description="Last activity timestamp for presence tracking")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -50,6 +51,7 @@ class UserUpdate(BaseModel):
     avatar: Optional[str] = Field(None)
     phone: Optional[str] = Field(None, max_length=20)
     email_preferences: Optional[EmailPreferences] = Field(None)
+    last_seen: Optional[datetime] = Field(None)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 class UserResponse(BaseModel):
@@ -63,6 +65,7 @@ class UserResponse(BaseModel):
     avatar: Optional[str]
     phone: Optional[str]
     email_preferences: Optional[EmailPreferences]
+    last_seen: Optional[datetime]
     created_at: datetime
     updated_at: datetime
 
