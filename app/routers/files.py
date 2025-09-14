@@ -180,6 +180,53 @@ def validate_url(url: str) -> bool:
     except:
         return False
 
+def is_youtube_url(url: str) -> bool:
+    """Check if URL is a YouTube video URL"""
+    youtube_patterns = [
+        r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/v/([a-zA-Z0-9_-]{11})',
+        r'm\.youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})'
+    ]
+
+    print(f"Testing URL: {url}")  # Debug log
+    for i, pattern in enumerate(youtube_patterns):
+        match = re.search(pattern, url)
+        print(f"Pattern {i+1}: {pattern} -> Match: {bool(match)}")  # Debug log
+        if match:
+            print(f"Matched with video ID: {match.group(1)}")  # Debug log
+            return True
+    print("No YouTube patterns matched")  # Debug log
+    return False
+
+def extract_youtube_video_id(url: str) -> str | None:
+    """Extract YouTube video ID from URL"""
+    youtube_patterns = [
+        r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/v/([a-zA-Z0-9_-]{11})',
+        r'm\.youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})'
+    ]
+
+    for pattern in youtube_patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+def extract_youtube_metadata(video_id: str) -> dict:
+    """Extract metadata for YouTube video"""
+    # For now, we'll use basic metadata. In the future, you could integrate with YouTube API
+    # for richer metadata like title, duration, thumbnail, etc.
+    return {
+        'title': f'YouTube Video',
+        'content_type': 'video/youtube',
+        'content_length': 0,
+        'video_id': video_id,
+        'embed_url': f'https://www.youtube.com/embed/{video_id}',
+        'thumbnail_url': f'https://img.youtube.com/vi/{video_id}/maxresdefault.jpg'
+    }
+
 def extract_metadata_from_url(url: str) -> dict:
     """Extract metadata from URL including title, content type, and size"""
     try:
@@ -234,17 +281,48 @@ async def add_url(url_data: URLCreate):
         raise HTTPException(status_code=400, detail="Invalid URL format")
     
     try:
-        # Extract metadata from URL
-        metadata = extract_metadata_from_url(url_data.url)
-        
-        # Generate filename from URL
-        parsed_url = urlparse(url_data.url)
-        filename = f"url_{parsed_url.netloc}_{int(datetime.utcnow().timestamp())}"
-        
-        # Determine original name
-        original_name = metadata.get('title') or parsed_url.path.split('/')[-1] or parsed_url.netloc
-        if not original_name or original_name == '/':
-            original_name = parsed_url.netloc
+        print(f"Processing URL: {url_data.url}")  # Debug log
+
+        # Check if this is a YouTube URL
+        is_youtube = is_youtube_url(url_data.url)
+        print(f"Is YouTube URL: {is_youtube}")  # Debug log
+
+        if is_youtube:
+            video_id = extract_youtube_video_id(url_data.url)
+            print(f"Extracted video ID: {video_id}")  # Debug log
+
+            if video_id:
+                metadata = extract_youtube_metadata(video_id)
+                print(f"YouTube metadata: {metadata}")  # Debug log
+                filename = f"youtube_{video_id}_{int(datetime.utcnow().timestamp())}"
+                original_name = f"YouTube Video {video_id}"
+
+                # Try to get a better title from the YouTube page
+                try:
+                    response = requests.get(url_data.url, timeout=10)
+                    title_match = re.search(r'<title[^>]*>(.*?) - YouTube</title>', response.text, re.IGNORECASE)
+                    if title_match:
+                        original_name = title_match.group(1).strip()[:100]
+                        metadata['title'] = original_name
+                        print(f"Extracted title: {original_name}")  # Debug log
+                except Exception as e:
+                    print(f"Failed to extract title: {e}")  # Debug log
+                    pass  # Use default name if we can't fetch title
+            else:
+                raise HTTPException(status_code=400, detail="Could not extract YouTube video ID")
+        else:
+            # Extract metadata from regular URL
+            metadata = extract_metadata_from_url(url_data.url)
+            print(f"Regular URL metadata: {metadata}")  # Debug log
+
+            # Generate filename from URL
+            parsed_url = urlparse(url_data.url)
+            filename = f"url_{parsed_url.netloc}_{int(datetime.utcnow().timestamp())}"
+
+            # Determine original name
+            original_name = metadata.get('title') or parsed_url.path.split('/')[-1] or parsed_url.netloc
+            if not original_name or original_name == '/':
+                original_name = parsed_url.netloc
         
         # Validate category_id if provided
         if url_data.category_id:
@@ -257,18 +335,31 @@ async def add_url(url_data: URLCreate):
                 raise HTTPException(status_code=400, detail="Category not found or inactive")
             
         # Create file record for URL
-        file_data = FileCreate(
-            filename=filename,
-            original_name=original_name[:100],  # Limit length
-            file_type=metadata['content_type'].split(';')[0],  # Remove charset info
-            file_size=metadata['content_length'],
-            cloudinary_url=url_data.url,  # Store the original URL
-            uploaded_by=url_data.uploaded_by,
-            description=url_data.description,
-            category_id=url_data.category_id,
-            source_type="url",
-            original_url=url_data.url
-        )
+        file_data_dict = {
+            "filename": filename,
+            "original_name": original_name[:100],  # Limit length
+            "file_type": metadata['content_type'].split(';')[0],  # Remove charset info
+            "file_size": metadata['content_length'],
+            "cloudinary_url": url_data.url,  # Store the original URL
+            "uploaded_by": url_data.uploaded_by,
+            "description": url_data.description,
+            "category_id": url_data.category_id,
+            "source_type": "youtube" if is_youtube_url(url_data.url) else "url",
+            "original_url": url_data.url
+        }
+
+        # Add YouTube-specific metadata if it's a YouTube video
+        if is_youtube_url(url_data.url):
+            youtube_fields = {
+                "video_id": metadata.get('video_id'),
+                "embed_url": metadata.get('embed_url'),
+                "thumbnail_url": metadata.get('thumbnail_url')
+            }
+            file_data_dict.update(youtube_fields)
+            print(f"Added YouTube fields: {youtube_fields}")  # Debug log
+
+        print(f"Final file_data_dict: {file_data_dict}")  # Debug log
+        file_data = FileCreate(**file_data_dict)
         
         collection = get_collection("files")
         file_dict = file_data.model_dump()

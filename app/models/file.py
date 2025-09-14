@@ -21,8 +21,11 @@ class FileModel(BaseModel):
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
     description: Optional[str] = Field(None, max_length=500)
     category_id: Optional[str] = Field(None, description="Category ID")
-    source_type: str = Field(default="upload")  # "upload" or "url"
+    source_type: str = Field(default="upload")  # "upload", "url", or "youtube"
     original_url: Optional[str] = Field(None)  # Store original URL if source_type is "url"
+    video_id: Optional[str] = Field(None, description="YouTube video ID")
+    embed_url: Optional[str] = Field(None, description="YouTube embed URL")
+    thumbnail_url: Optional[str] = Field(None, description="YouTube thumbnail URL")
 
 class FileCreate(BaseModel):
     filename: str = Field(..., min_length=1)
@@ -35,6 +38,9 @@ class FileCreate(BaseModel):
     category_id: Optional[str] = Field(None, description="Category ID")
     source_type: str = Field(default="upload")
     original_url: Optional[str] = Field(None)
+    video_id: Optional[str] = Field(None, description="YouTube video ID")
+    embed_url: Optional[str] = Field(None, description="YouTube embed URL")
+    thumbnail_url: Optional[str] = Field(None, description="YouTube thumbnail URL")
 
 class FileResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -52,6 +58,9 @@ class FileResponse(BaseModel):
     category_name: Optional[str] = None  # Will be populated via lookup
     source_type: str
     original_url: Optional[str]
+    video_id: Optional[str] = None
+    embed_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
 class URLCreate(BaseModel):
     url: str = Field(..., min_length=1)
