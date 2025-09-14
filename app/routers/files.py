@@ -223,7 +223,7 @@ def extract_youtube_metadata(video_id: str) -> dict:
         'content_type': 'video/youtube',
         'content_length': 0,
         'video_id': video_id,
-        'embed_url': f'https://www.youtube.com/embed/{video_id}',
+        'embed_url': f'https://www.youtube.com/embed/{video_id}?controls=1&autoplay=0&rel=0&modestbranding=1&showinfo=1',
         'thumbnail_url': f'https://img.youtube.com/vi/{video_id}/maxresdefault.jpg'
     }
 
@@ -299,25 +299,46 @@ async def add_url(url_data: URLCreate):
 
                 # Try to get a better title from the YouTube page
                 try:
-                    response = requests.get(url_data.url, timeout=10)
-                    title_match = re.search(r'<title[^>]*>(.*?) - YouTube</title>', response.text, re.IGNORECASE)
-                    if title_match:
-                        extracted_title = title_match.group(1).strip()[:100]
-                        if extracted_title:  # Only use if not empty
-                            original_name = extracted_title
-                            metadata['title'] = original_name
-                            print(f"Extracted title: {original_name}")  # Debug log
-                        else:
-                            print("Extracted title was empty, using default")  # Debug log
+                    print(f"Fetching YouTube page for title extraction: {url_data.url}")  # Debug log
+                    headers = {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    }
+                    response = requests.get(url_data.url, timeout=15, headers=headers)
+
+                    # Try multiple patterns to extract title
+                    title_patterns = [
+                        r'<title[^>]*>(.*?) - YouTube</title>',
+                        r'"title":"([^"]+)"',
+                        r'<meta property="og:title" content="([^"]*)"',
+                        r'<meta name="title" content="([^"]*)"'
+                    ]
+
+                    extracted_title = None
+                    for pattern in title_patterns:
+                        title_match = re.search(pattern, response.text, re.IGNORECASE)
+                        if title_match:
+                            extracted_title = title_match.group(1).strip()
+                            if extracted_title and extracted_title != "YouTube":
+                                # Clean up title (remove HTML entities, etc.)
+                                extracted_title = extracted_title.replace('\\u0026', '&')
+                                extracted_title = extracted_title.replace('\\u0027', "'")
+                                extracted_title = extracted_title.replace('&quot;', '"')
+                                break
+
+                    if extracted_title and len(extracted_title) > 0:
+                        original_name = extracted_title[:100]  # Limit length
+                        metadata['title'] = original_name
+                        print(f"Successfully extracted title: {original_name}")  # Debug log
                     else:
-                        print("No title match found in YouTube page")  # Debug log
+                        print(f"No valid title found, using fallback")  # Debug log
+
                 except Exception as e:
                     print(f"Failed to extract title: {e}")  # Debug log
                     pass  # Use default name if we can't fetch title
 
-                # Ensure original_name is not empty (required by FileCreate model)
-                if not original_name:
-                    original_name = f"YouTube Video {video_id}"
+                # Ensure original_name is not empty and not just the video ID (required by FileCreate model)
+                if not original_name or original_name == video_id or original_name == f"YouTube Video {video_id}":
+                    original_name = f"YouTube Video"
                     print(f"Using fallback title: {original_name}")  # Debug log
             else:
                 raise HTTPException(status_code=400, detail="Could not extract YouTube video ID")
