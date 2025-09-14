@@ -223,7 +223,7 @@ def extract_youtube_metadata(video_id: str) -> dict:
         'content_type': 'video/youtube',
         'content_length': 0,
         'video_id': video_id,
-        'embed_url': f'https://www.youtube.com/embed/{video_id}?enablejsapi=1&controls=1&modestbranding=0&fs=1&cc_load_policy=0&iv_load_policy=3&autohide=0',
+        'embed_url': f'https://www.youtube.com/embed/{video_id}?controls=1&rel=0',
         'thumbnail_url': f'https://img.youtube.com/vi/{video_id}/maxresdefault.jpg'
     }
 
@@ -305,24 +305,38 @@ async def add_url(url_data: URLCreate):
                     }
                     response = requests.get(url_data.url, timeout=15, headers=headers)
 
-                    # Try multiple patterns to extract title
+                    # Try multiple patterns to extract title (most specific first)
                     title_patterns = [
-                        r'<title[^>]*>(.*?) - YouTube</title>',
-                        r'"title":"([^"]+)"',
-                        r'<meta property="og:title" content="([^"]*)"',
-                        r'<meta name="title" content="([^"]*)"'
+                        r'<meta property="og:title" content="([^"]{10,})"',  # OpenGraph title (min 10 chars)
+                        r'<title[^>]*>([^-]{10,}) - YouTube</title>',  # Page title (min 10 chars, not just dash)
+                        r'"videoDetails":\s*{\s*"[^"]*":\s*"[^"]*",\s*"title":\s*"([^"]{10,})"',  # Video details JSON
+                        r'ytInitialPlayerResponse[^}]*"videoDetails"[^}]*"title":\s*"([^"]{10,})"'  # Player response
                     ]
 
                     extracted_title = None
-                    for pattern in title_patterns:
-                        title_match = re.search(pattern, response.text, re.IGNORECASE)
+                    for i, pattern in enumerate(title_patterns):
+                        title_match = re.search(pattern, response.text, re.IGNORECASE | re.DOTALL)
                         if title_match:
-                            extracted_title = title_match.group(1).strip()
+                            raw_title = title_match.group(1).strip()
+                            print(f"Pattern {i+1} raw match: '{raw_title}'")  # Debug log
+
+                            # Skip if it's just numbers or too short
+                            if re.match(r'^\d+$', raw_title):  # Skip if only digits
+                                print(f"Skipping numeric-only title: '{raw_title}'")
+                                continue
+
+                            if len(raw_title) < 5:  # Skip if too short
+                                print(f"Skipping short title: '{raw_title}'")
+                                continue
+
+                            # Clean up title
+                            extracted_title = raw_title.replace('\\u0026', '&')
+                            extracted_title = extracted_title.replace('\\u0027', "'")
+                            extracted_title = extracted_title.replace('&quot;', '"')
+                            extracted_title = extracted_title.replace('&amp;', '&')
+
                             if extracted_title and extracted_title != "YouTube":
-                                # Clean up title (remove HTML entities, etc.)
-                                extracted_title = extracted_title.replace('\\u0026', '&')
-                                extracted_title = extracted_title.replace('\\u0027', "'")
-                                extracted_title = extracted_title.replace('&quot;', '"')
+                                print(f"Valid title found: '{extracted_title}'")
                                 break
 
                     if extracted_title and len(extracted_title) > 0:
@@ -337,8 +351,8 @@ async def add_url(url_data: URLCreate):
                     pass  # Use default name if we can't fetch title
 
                 # Ensure original_name is not empty and not just the video ID (required by FileCreate model)
-                if not original_name or original_name == video_id or original_name == f"YouTube Video {video_id}":
-                    original_name = f"YouTube Video"
+                if not original_name or original_name == video_id or original_name == f"YouTube Video {video_id}" or re.match(r'^\d+$', original_name):
+                    original_name = f"YouTube Video ({video_id})"
                     print(f"Using fallback title: {original_name}")  # Debug log
             else:
                 raise HTTPException(status_code=400, detail="Could not extract YouTube video ID")
