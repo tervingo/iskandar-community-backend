@@ -302,12 +302,23 @@ async def add_url(url_data: URLCreate):
                     response = requests.get(url_data.url, timeout=10)
                     title_match = re.search(r'<title[^>]*>(.*?) - YouTube</title>', response.text, re.IGNORECASE)
                     if title_match:
-                        original_name = title_match.group(1).strip()[:100]
-                        metadata['title'] = original_name
-                        print(f"Extracted title: {original_name}")  # Debug log
+                        extracted_title = title_match.group(1).strip()[:100]
+                        if extracted_title:  # Only use if not empty
+                            original_name = extracted_title
+                            metadata['title'] = original_name
+                            print(f"Extracted title: {original_name}")  # Debug log
+                        else:
+                            print("Extracted title was empty, using default")  # Debug log
+                    else:
+                        print("No title match found in YouTube page")  # Debug log
                 except Exception as e:
                     print(f"Failed to extract title: {e}")  # Debug log
                     pass  # Use default name if we can't fetch title
+
+                # Ensure original_name is not empty (required by FileCreate model)
+                if not original_name:
+                    original_name = f"YouTube Video {video_id}"
+                    print(f"Using fallback title: {original_name}")  # Debug log
             else:
                 raise HTTPException(status_code=400, detail="Could not extract YouTube video ID")
         else:
@@ -359,23 +370,38 @@ async def add_url(url_data: URLCreate):
             print(f"Added YouTube fields: {youtube_fields}")  # Debug log
 
         print(f"Final file_data_dict: {file_data_dict}")  # Debug log
-        file_data = FileCreate(**file_data_dict)
-        
-        collection = get_collection("files")
-        file_dict = file_data.model_dump()
-        file_dict["uploaded_at"] = datetime.utcnow()
-        
-        result = await collection.insert_one(file_dict)
-        created_file = await collection.find_one({"_id": result.inserted_id})
-        
-        # Convert ObjectId to string and map _id to id
-        created_file["id"] = str(created_file["_id"])
-        created_file["_id"] = str(created_file["_id"])
-        
-        # Populate category name
-        created_file = await populate_file_category_name(created_file)
-        
-        return FileResponse(**created_file)
-        
+
+        try:
+            file_data = FileCreate(**file_data_dict)
+            print("FileCreate object created successfully")  # Debug log
+        except Exception as e:
+            print(f"Error creating FileCreate object: {e}")  # Debug log
+            raise HTTPException(status_code=500, detail=f"FileCreate validation failed: {str(e)}")
+
+        try:
+            collection = get_collection("files")
+            file_dict = file_data.model_dump()
+            file_dict["uploaded_at"] = datetime.utcnow()
+            print(f"File dict for database: {file_dict}")  # Debug log
+
+            result = await collection.insert_one(file_dict)
+            print(f"Database insert result: {result.inserted_id}")  # Debug log
+
+            created_file = await collection.find_one({"_id": result.inserted_id})
+            print(f"Retrieved created file: {created_file}")  # Debug log
+
+            # Convert ObjectId to string and map _id to id
+            created_file["id"] = str(created_file["_id"])
+            created_file["_id"] = str(created_file["_id"])
+
+            # Populate category name
+            created_file = await populate_file_category_name(created_file)
+
+            return FileResponse(**created_file)
+        except Exception as e:
+            print(f"Error during database operations: {e}")  # Debug log
+            raise HTTPException(status_code=500, detail=f"Database operation failed: {str(e)}")
+
     except Exception as e:
+        print(f"General error in add_url: {e}")  # Debug log
         raise HTTPException(status_code=500, detail=f"URL addition failed: {str(e)}")
