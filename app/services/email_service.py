@@ -38,9 +38,13 @@ class EmailService:
             logger.warning("Email credentials not configured. Email functionality will be disabled.")
             logger.warning("Please set MAIL_USERNAME/MAIL_PASSWORD environment variables.")
             self.email_enabled = False
-        
-        # Initialize FastMail
-        self.fastmail = FastMail(self.conf)
+            self.conf = None
+
+        # Initialize FastMail only if email is enabled
+        if self.email_enabled and self.conf:
+            self.fastmail = FastMail(self.conf)
+        else:
+            self.fastmail = None
         
         # Set up Jinja2 template environment
         template_dir = Path(__file__).parent.parent / "templates" / "email"
@@ -119,9 +123,10 @@ class EmailService:
             
         except Exception as e:
             logger.error(f"Failed to send email: {e}")
-            logger.error(f"SMTP config - Server: {self.conf.MAIL_SERVER}, Port: {self.conf.MAIL_PORT}, Username: {self.conf.MAIL_USERNAME}")
-            logger.error(f"SMTP settings - STARTTLS: {self.conf.MAIL_STARTTLS}, SSL_TLS: {self.conf.MAIL_SSL_TLS}, USE_CREDENTIALS: {self.conf.USE_CREDENTIALS}")
-            logger.error(f"Password length: {len(self.conf.MAIL_PASSWORD) if self.conf.MAIL_PASSWORD else 0} characters")
+            if self.conf:
+                logger.error(f"SMTP config - Server: {self.conf.MAIL_SERVER}, Port: {self.conf.MAIL_PORT}, Username: {self.conf.MAIL_USERNAME}")
+                logger.error(f"SMTP settings - STARTTLS: {self.conf.MAIL_STARTTLS}, SSL_TLS: {self.conf.MAIL_SSL_TLS}, USE_CREDENTIALS: {self.conf.USE_CREDENTIALS}")
+                logger.error(f"Password length: {len(self.conf.MAIL_PASSWORD) if self.conf.MAIL_PASSWORD else 0} characters")
             return False
     
     async def get_subscribed_users(self, notification_type: str = "new_posts") -> List[Dict[str, Any]]:

@@ -223,6 +223,7 @@ async def get_all_users(
                 "comment_replies": True,
                 "weekly_digest": False
             })
+            user.setdefault("last_seen", None)
             users.append(UserResponse(**user))
         
         return users
