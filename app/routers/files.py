@@ -223,7 +223,7 @@ def extract_youtube_metadata(video_id: str) -> dict:
         'content_type': 'video/youtube',
         'content_length': 0,
         'video_id': video_id,
-        'embed_url': f'https://www.youtube.com/embed/{video_id}?controls=1&autoplay=0&rel=0&modestbranding=1&showinfo=1',
+        'embed_url': f'https://www.youtube.com/embed/{video_id}?enablejsapi=1&controls=1&modestbranding=0&fs=1&cc_load_policy=0&iv_load_policy=3&autohide=0',
         'thumbnail_url': f'https://img.youtube.com/vi/{video_id}/maxresdefault.jpg'
     }
 
