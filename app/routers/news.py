@@ -132,3 +132,44 @@ async def delete_news(news_id: str, current_user: TokenData = Depends(get_curren
         await collection.delete_one({"_id": ObjectId(news_id)})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete news article: {str(e)}")
+
+@router.post("/initialize", status_code=status.HTTP_201_CREATED)
+async def initialize_news_collection(current_user: TokenData = Depends(get_current_user)):
+    """Initialize news collection with basic setup (admin only)"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Only administrators can initialize the news collection"
+        )
+
+    try:
+        collection = get_collection("news")
+
+        # Check if collection already has documents
+        existing_count = await collection.count_documents({})
+
+        if existing_count > 0:
+            return {"message": f"News collection already exists with {existing_count} articles"}
+
+        # Create an index on created_at for better performance
+        await collection.create_index("created_at", background=True)
+
+        # Optionally create a sample news article
+        sample_news = {
+            "title": "¡Bienvenidos a la sección de Noticias!",
+            "url": "https://github.com/anthropics/claude-code",
+            "comment": "Esta es la primera noticia de ejemplo. Pueden crear, editar y compartir noticias interesantes aquí.",
+            "created_by": current_user.name,
+            "created_at": datetime.utcnow()
+        }
+
+        result = await collection.insert_one(sample_news)
+
+        return {
+            "message": "News collection initialized successfully",
+            "sample_article_id": str(result.inserted_id),
+            "collection_name": "news"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to initialize news collection: {str(e)}")
