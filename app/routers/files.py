@@ -186,7 +186,9 @@ def is_youtube_url(url: str) -> bool:
         r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})',
         r'youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})',
         r'youtube\.com/v/([a-zA-Z0-9_-]{11})',
-        r'm\.youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})'
+        r'm\.youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/shorts/([a-zA-Z0-9_-]{11})',  # YouTube Shorts
+        r'm\.youtube\.com/shorts/([a-zA-Z0-9_-]{11})'  # Mobile YouTube Shorts
     ]
 
     print(f"Testing URL: {url}")  # Debug log
@@ -205,7 +207,9 @@ def extract_youtube_video_id(url: str) -> str | None:
         r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})',
         r'youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})',
         r'youtube\.com/v/([a-zA-Z0-9_-]{11})',
-        r'm\.youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})'
+        r'm\.youtube\.com/watch\?.*v=([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/shorts/([a-zA-Z0-9_-]{11})',  # YouTube Shorts
+        r'm\.youtube\.com/shorts/([a-zA-Z0-9_-]{11})'  # Mobile YouTube Shorts
     ]
 
     for pattern in youtube_patterns:
