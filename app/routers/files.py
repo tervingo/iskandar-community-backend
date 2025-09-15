@@ -311,10 +311,12 @@ async def add_url(url_data: URLCreate):
 
                     # Try multiple patterns to extract title (most specific first)
                     title_patterns = [
-                        r'<meta property="og:title" content="([^"]{10,})"',  # OpenGraph title (min 10 chars)
-                        r'<title[^>]*>([^-]{10,}) - YouTube</title>',  # Page title (min 10 chars, not just dash)
-                        r'"videoDetails":\s*{\s*"[^"]*":\s*"[^"]*",\s*"title":\s*"([^"]{10,})"',  # Video details JSON
-                        r'ytInitialPlayerResponse[^}]*"videoDetails"[^}]*"title":\s*"([^"]{10,})"'  # Player response
+                        r'<meta property="og:title" content="([^"]{5,})"',  # OpenGraph title (min 5 chars)
+                        r'<title[^>]*>([^<]{5,}?)\s*-\s*YouTube</title>',  # Page title (min 5 chars, cleaner match)
+                        r'"videoDetails":\s*{[^}]*"title":\s*"([^"]{5,})"',  # Video details JSON (simplified)
+                        r'ytInitialPlayerResponse[^}]*"videoDetails"[^}]*"title":\s*"([^"]{5,})"',  # Player response
+                        r'"title":\s*"([^"]{5,})"[^}]*"videoId":\s*"' + re.escape(video_id) + r'"',  # Title near video ID
+                        r'<meta name="title" content="([^"]{5,})"'  # Meta title tag
                     ]
 
                     extracted_title = None
@@ -324,22 +326,26 @@ async def add_url(url_data: URLCreate):
                             raw_title = title_match.group(1).strip()
                             print(f"Pattern {i+1} raw match: '{raw_title}'")  # Debug log
 
-                            # Skip if it's just numbers or too short
-                            if re.match(r'^\d+$', raw_title):  # Skip if only digits
-                                print(f"Skipping numeric-only title: '{raw_title}'")
+                            # Skip if it's just numbers, too short, or generic
+                            if (re.match(r'^\d+$', raw_title) or  # Skip if only digits
+                                len(raw_title.strip()) < 3 or  # Skip if too short
+                                raw_title.strip().lower() in ['youtube', 'video', 'shorts', 'untitled']):  # Skip generic titles
+                                print(f"Skipping invalid title: '{raw_title}'")
                                 continue
 
-                            if len(raw_title) < 5:  # Skip if too short
-                                print(f"Skipping short title: '{raw_title}'")
-                                continue
-
-                            # Clean up title
-                            extracted_title = raw_title.replace('\\u0026', '&')
+                            # Clean up title (handle HTML entities and JSON escaping)
+                            extracted_title = raw_title.strip()
+                            extracted_title = extracted_title.replace('\\u0026', '&')
                             extracted_title = extracted_title.replace('\\u0027', "'")
+                            extracted_title = extracted_title.replace('\\u003c', '<')
+                            extracted_title = extracted_title.replace('\\u003e', '>')
                             extracted_title = extracted_title.replace('&quot;', '"')
                             extracted_title = extracted_title.replace('&amp;', '&')
+                            extracted_title = extracted_title.replace('&lt;', '<')
+                            extracted_title = extracted_title.replace('&gt;', '>')
+                            extracted_title = extracted_title.replace('&#39;', "'")
 
-                            if extracted_title and extracted_title != "YouTube":
+                            if extracted_title and len(extracted_title.strip()) >= 3:
                                 print(f"Valid title found: '{extracted_title}'")
                                 break
 
