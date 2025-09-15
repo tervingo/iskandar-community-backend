@@ -223,7 +223,7 @@ def extract_youtube_metadata(video_id: str) -> dict:
         'content_type': 'video/youtube',
         'content_length': 0,
         'video_id': video_id,
-        'embed_url': f'https://www.youtube.com/embed/{video_id}?controls=1&rel=0',
+        'embed_url': f'https://www.youtube.com/embed/{video_id}?controls=1&rel=0&modestbranding=1&showinfo=0&fs=1&autoplay=0',
         'thumbnail_url': f'https://img.youtube.com/vi/{video_id}/maxresdefault.jpg'
     }
 
@@ -352,7 +352,7 @@ async def add_url(url_data: URLCreate):
 
                 # Ensure original_name is not empty and not just the video ID (required by FileCreate model)
                 if not original_name or original_name == video_id or original_name == f"YouTube Video {video_id}" or re.match(r'^\d+$', original_name):
-                    original_name = f"YouTube Video ({video_id})"
+                    original_name = f"YouTube Video"
                     print(f"Using fallback title: {original_name}")  # Debug log
             else:
                 raise HTTPException(status_code=400, detail="Could not extract YouTube video ID")
