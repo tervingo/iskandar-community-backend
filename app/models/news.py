@@ -29,12 +29,16 @@ class NewsCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
     url: str = Field(..., min_length=1, max_length=2000)
     comment: Optional[str] = Field(None, max_length=1000)
-    created_by: str = Field(..., min_length=1, max_length=50)
 
     @validator('url')
     def validate_url(cls, v):
+        if not v or not isinstance(v, str):
+            raise ValueError('URL is required and must be a string')
+        v = v.strip()
         if not v.startswith(('http://', 'https://')):
             raise ValueError('URL must start with http:// or https://')
+        if len(v) < 10:  # Minimum reasonable URL length
+            raise ValueError('URL too short')
         return v
 
 class NewsUpdate(BaseModel):

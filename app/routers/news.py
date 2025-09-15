@@ -45,10 +45,15 @@ async def get_news_by_id(news_id: str):
 async def create_news(news_data: NewsCreate, current_user: TokenData = Depends(get_current_user)):
     """Create a new news article (authenticated users only)"""
 
+    print(f"Creating news with data: {news_data}")  # Debug log
+    print(f"Current user: {current_user.name}")  # Debug log
+
     # Override created_by with authenticated user's name
     news_data_dict = news_data.model_dump()
     news_data_dict["created_by"] = current_user.name
     news_data_dict["created_at"] = datetime.utcnow()
+
+    print(f"Final news dict: {news_data_dict}")  # Debug log
 
     try:
         collection = get_collection("news")
@@ -61,7 +66,11 @@ async def create_news(news_data: NewsCreate, current_user: TokenData = Depends(g
 
         return NewsResponse(**created_news)
 
+    except ValueError as ve:
+        print(f"Validation error: {ve}")  # Debug log
+        raise HTTPException(status_code=422, detail=f"Validation error: {str(ve)}")
     except Exception as e:
+        print(f"Database error: {e}")  # Debug log
         raise HTTPException(status_code=500, detail=f"Failed to create news article: {str(e)}")
 
 @router.put("/{news_id}", response_model=NewsResponse)
