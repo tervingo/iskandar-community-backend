@@ -52,6 +52,7 @@ async def create_news(news_data: NewsCreate, current_user: TokenData = Depends(g
     news_data_dict = news_data.model_dump()
     news_data_dict["created_by"] = current_user.name
     news_data_dict["created_at"] = datetime.utcnow()
+    news_data_dict["updated_at"] = None  # Explicitly set to None for new articles
 
     print(f"Final news dict: {news_data_dict}")  # Debug log
 
@@ -60,9 +61,13 @@ async def create_news(news_data: NewsCreate, current_user: TokenData = Depends(g
         result = await collection.insert_one(news_data_dict)
         created_news = await collection.find_one({"_id": result.inserted_id})
 
+        print(f"Retrieved from DB: {created_news}")  # Debug log
+
         # Convert ObjectId to string and map _id to id
         created_news["id"] = str(created_news["_id"])
         created_news["_id"] = str(created_news["_id"])
+
+        print(f"Before NewsResponse creation: {created_news}")  # Debug log
 
         return NewsResponse(**created_news)
 

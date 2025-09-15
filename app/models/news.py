@@ -58,7 +58,7 @@ class NewsResponse(BaseModel):
     id: str
     title: str
     url: str
-    comment: Optional[str]
+    comment: Optional[str] = None
     created_by: str
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
