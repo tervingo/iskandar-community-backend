@@ -5,7 +5,7 @@ from datetime import datetime
 from app.models.news import NewsModel, NewsCreate, NewsUpdate, NewsResponse
 from app.database import get_collection
 from app.auth import get_current_user
-from app.models.user import User
+from app.models.user import TokenData, UserRole
 
 router = APIRouter()
 
@@ -42,7 +42,7 @@ async def get_news_by_id(news_id: str):
     return NewsResponse(**news_doc)
 
 @router.post("/", response_model=NewsResponse, status_code=status.HTTP_201_CREATED)
-async def create_news(news_data: NewsCreate, current_user: User = Depends(get_current_user)):
+async def create_news(news_data: NewsCreate, current_user: TokenData = Depends(get_current_user)):
     """Create a new news article (authenticated users only)"""
 
     # Override created_by with authenticated user's name
@@ -65,7 +65,7 @@ async def create_news(news_data: NewsCreate, current_user: User = Depends(get_cu
         raise HTTPException(status_code=500, detail=f"Failed to create news article: {str(e)}")
 
 @router.put("/{news_id}", response_model=NewsResponse)
-async def update_news(news_id: str, news_update: NewsUpdate, current_user: User = Depends(get_current_user)):
+async def update_news(news_id: str, news_update: NewsUpdate, current_user: TokenData = Depends(get_current_user)):
     """Update a news article (only by creator or admin)"""
     if not ObjectId.is_valid(news_id):
         raise HTTPException(status_code=400, detail="Invalid news ID format")
@@ -77,7 +77,7 @@ async def update_news(news_id: str, news_update: NewsUpdate, current_user: User 
         raise HTTPException(status_code=404, detail="News article not found")
 
     # Check permissions: only creator or admin can update
-    if existing_news["created_by"] != current_user.name and current_user.role != "admin":
+    if existing_news["created_by"] != current_user.name and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
             detail="You can only edit your own news articles"
@@ -110,7 +110,7 @@ async def update_news(news_id: str, news_update: NewsUpdate, current_user: User 
         raise HTTPException(status_code=500, detail=f"Failed to update news article: {str(e)}")
 
 @router.delete("/{news_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_news(news_id: str, current_user: User = Depends(get_current_user)):
+async def delete_news(news_id: str, current_user: TokenData = Depends(get_current_user)):
     """Delete a news article (only by creator or admin)"""
     if not ObjectId.is_valid(news_id):
         raise HTTPException(status_code=400, detail="Invalid news ID format")
@@ -122,7 +122,7 @@ async def delete_news(news_id: str, current_user: User = Depends(get_current_use
         raise HTTPException(status_code=404, detail="News article not found")
 
     # Check permissions: only creator or admin can delete
-    if existing_news["created_by"] != current_user.name and current_user.role != "admin":
+    if existing_news["created_by"] != current_user.name and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=403,
             detail="You can only delete your own news articles"
