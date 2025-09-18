@@ -56,16 +56,16 @@ class UserUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    
+
     id: str = Field(alias="_id")
     email: str
     name: str
     role: UserRole
     is_active: bool
-    avatar: Optional[str]
-    phone: Optional[str]
-    email_preferences: Optional[EmailPreferences]
-    last_seen: Optional[datetime]
+    avatar: Optional[str] = None
+    phone: Optional[str] = None
+    email_preferences: Optional[EmailPreferences] = None
+    last_seen: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

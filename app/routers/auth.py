@@ -187,6 +187,7 @@ async def create_user(
     user_dict["is_active"] = True  # Force set instead of setdefault
     user_dict.setdefault("avatar", None)
     user_dict.setdefault("phone", None)
+    user_dict["last_seen"] = None  # Set to None for new users
     # Set default email preferences for new users
     user_dict["email_preferences"] = {
         "new_posts": True,
