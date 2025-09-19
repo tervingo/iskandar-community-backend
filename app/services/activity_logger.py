@@ -51,10 +51,12 @@ class ActivityLogger:
             bool: True if logged successfully, False otherwise
         """
         try:
+            print(f"ActivityLogger.log_activity called: {username} - {event_type.value}")
             # Extract client information if request is provided
             ip_address, user_agent = None, None
             if request:
                 ip_address, user_agent = ActivityLogger.extract_client_info(request)
+            print(f"Client info extracted: IP={ip_address}, UA={user_agent}")
 
             # Create log entry
             log_entry = UserActivityLogCreate(
@@ -65,13 +67,16 @@ class ActivityLogger:
                 success=success,
                 additional_info=additional_info
             )
+            print(f"Log entry created: {log_entry}")
 
             # Save to MongoDB
             collection = get_collection("user_activity_logs")
             log_dict = log_entry.model_dump()
             log_dict["timestamp"] = datetime.utcnow()
+            print(f"Inserting into MongoDB: {log_dict}")
 
-            await collection.insert_one(log_dict)
+            result = await collection.insert_one(log_dict)
+            print(f"MongoDB insert result: {result.inserted_id}")
 
             # Also log to Python logger for backup/debugging
             log_level = logging.INFO if success else logging.WARNING
@@ -102,14 +107,17 @@ class ActivityLogger:
     @staticmethod
     async def log_logout(username: str, request: Optional[Request] = None) -> bool:
         """Log user logout"""
+        print(f"ActivityLogger.log_logout called for username: {username}")
         additional_info = {"logout_method": "web_interface"}
-        return await ActivityLogger.log_activity(
+        result = await ActivityLogger.log_activity(
             username=username,
             event_type=ActivityEventType.LOGOUT,
             success=True,  # Logout is always considered successful
             request=request,
             additional_info=additional_info
         )
+        print(f"ActivityLogger.log_logout result: {result}")
+        return result
 
     @staticmethod
     async def log_password_change(username: str, success: bool, request: Optional[Request] = None) -> bool:

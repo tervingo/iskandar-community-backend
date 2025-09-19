@@ -80,17 +80,20 @@ async def logout(
 ):
     """Log user logout event"""
     try:
+        print(f"Logout endpoint called for user: {current_user.name}")
         # Log the logout event before the token is invalidated
-        await ActivityLogger.log_logout(
+        result = await ActivityLogger.log_logout(
             username=current_user.name,
-            success=True,
             request=request
         )
-        return {"message": "Logout logged successfully"}
+        print(f"Logout logging result: {result}")
+        return {"message": "Logout logged successfully", "logged": result}
     except Exception as e:
         # Even if logging fails, we should allow the logout to proceed
         print(f"Error logging logout: {e}")
-        return {"message": "Logout completed (logging error occurred)"}
+        import traceback
+        traceback.print_exc()
+        return {"message": "Logout completed (logging error occurred)", "error": str(e)}
 
 @router.post("/heartbeat")
 async def heartbeat(current_user: TokenData = Depends(get_current_active_user)):
