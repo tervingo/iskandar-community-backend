@@ -13,16 +13,23 @@ from app.auth import (
 )
 from datetime import datetime, timedelta
 from app.utils.presence import get_online_users, cleanup_offline_users, is_user_online
+from app.services.activity_logger import ActivityLogger
 
 router = APIRouter()
 
 
 @router.post("/login")
-async def login(user_credentials: UserLogin):
+async def login(user_credentials: UserLogin, request: Request):
     """Authenticate user and return JWT token"""
     try:
         user = await authenticate_user(user_credentials.name, user_credentials.password)
         if not user:
+            # Log failed login attempt
+            await ActivityLogger.log_login(
+                username=user_credentials.name,
+                success=False,
+                request=request
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect name or password"
@@ -33,6 +40,13 @@ async def login(user_credentials: UserLogin):
         await users_collection.update_one(
             {"_id": ObjectId(user["_id"])},
             {"$set": {"last_seen": datetime.utcnow()}}
+        )
+
+        # Log successful login
+        await ActivityLogger.log_login(
+            username=user["name"],
+            success=True,
+            request=request
         )
 
         access_token = create_user_token(user)
@@ -128,17 +142,24 @@ async def update_current_user_profile(
 @router.post("/change-password")
 async def change_password(
     password_data: PasswordChange,
+    request: Request,
     current_user: TokenData = Depends(get_current_active_user)
 ):
     """Change user password"""
     users_collection = get_collection("users")
     user = await users_collection.find_one({"_id": ObjectId(current_user.user_id)})
-    
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     # Verify current password
     if not verify_password(password_data.current_password, user["password_hash"]):
+        # Log failed password change attempt
+        await ActivityLogger.log_password_change(
+            username=current_user.name,
+            success=False,
+            request=request
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect current password"
@@ -150,7 +171,14 @@ async def change_password(
         {"_id": ObjectId(current_user.user_id)},
         {"$set": {"password_hash": new_password_hash, "updated_at": datetime.utcnow()}}
     )
-    
+
+    # Log successful password change
+    await ActivityLogger.log_password_change(
+        username=current_user.name,
+        success=True,
+        request=request
+    )
+
     return {"message": "Password changed successfully"}
 
 # Admin-only endpoints
