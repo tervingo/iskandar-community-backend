@@ -73,6 +73,25 @@ async def login(user_credentials: UserLogin, request: Request):
             detail="Internal server error during login"
         )
 
+@router.post("/logout")
+async def logout(
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user)
+):
+    """Log user logout event"""
+    try:
+        # Log the logout event before the token is invalidated
+        await ActivityLogger.log_logout(
+            username=current_user.name,
+            success=True,
+            request=request
+        )
+        return {"message": "Logout logged successfully"}
+    except Exception as e:
+        # Even if logging fails, we should allow the logout to proceed
+        print(f"Error logging logout: {e}")
+        return {"message": "Logout completed (logging error occurred)"}
+
 @router.post("/heartbeat")
 async def heartbeat(current_user: TokenData = Depends(get_current_active_user)):
     """Update user's last_seen timestamp for presence tracking"""
