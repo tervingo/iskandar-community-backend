@@ -130,3 +130,19 @@ class ActivityLogger:
             request=request,
             additional_info=additional_info
         )
+
+    @staticmethod
+    async def log_post_view(username: str, post_id: str, post_title: str, request: Optional[Request] = None) -> bool:
+        """Log post view event"""
+        additional_info = {
+            "post_id": post_id,
+            "post_title": post_title,
+            "view_method": "web_interface"
+        }
+        return await ActivityLogger.log_activity(
+            username=username,
+            event_type=ActivityEventType.POST_VIEW,
+            success=True,  # Post view is always considered successful
+            request=request,
+            additional_info=additional_info
+        )

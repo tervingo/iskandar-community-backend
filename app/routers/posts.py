@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, status, Depends, BackgroundTasks, Request
 from typing import List
 from bson import ObjectId
 from app.models.post import PostModel, PostCreate, PostUpdate, PostResponse, PostPublish, PostPinPriority
@@ -6,6 +6,7 @@ from app.models.user import TokenData
 from app.database import get_collection
 from app.auth import get_current_active_user, get_current_admin_user
 from app.services.email_service import email_service
+from app.services.activity_logger import ActivityLogger
 from datetime import datetime
 
 router = APIRouter()
@@ -90,7 +91,11 @@ async def get_all_posts_including_drafts(
     return posts
 
 @router.get("/{post_id}", response_model=PostResponse)
-async def get_post(post_id: str, current_user: TokenData = Depends(get_current_active_user)):
+async def get_post(
+    post_id: str,
+    request: Request,
+    current_user: TokenData = Depends(get_current_active_user)
+):
     if not ObjectId.is_valid(post_id):
         raise HTTPException(status_code=400, detail="Invalid post ID format")
     
@@ -111,7 +116,20 @@ async def get_post(post_id: str, current_user: TokenData = Depends(get_current_a
     
     # Populate category name
     post = await populate_category_name(post)
-    
+
+    # Log post view event if post is published
+    if post.get("is_published", False):
+        try:
+            await ActivityLogger.log_post_view(
+                username=current_user.name,
+                post_id=post_id,
+                post_title=post.get("title", "Unknown Post"),
+                request=request
+            )
+        except Exception as e:
+            # Don't fail the request if logging fails
+            print(f"Error logging post view: {e}")
+
     return PostResponse(**post)
 
 @router.post("/", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
