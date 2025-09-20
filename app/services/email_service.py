@@ -137,16 +137,21 @@ class EmailService:
                 "is_active": True,
                 f"email_preferences.{notification_type}": True
             }
-            
+
+            logger.info(f"Searching for users with query: {query}")
+
             users = []
             async for user in collection.find(query):
+                logger.info(f"Found subscribed user: {user['name']} ({user['email']}) - preferences: {user.get('email_preferences', 'No preferences')}")
                 users.append({
                     "id": str(user["_id"]),
                     "name": user["name"],
                     "email": user["email"]
                 })
+
+            logger.info(f"Total subscribed users found: {len(users)}")
             return users
-            
+
         except Exception as e:
             logger.error(f"Error getting subscribed users: {e}")
             return []
@@ -174,14 +179,18 @@ class EmailService:
             return []
     
     async def send_new_post_notification(self, post_data: Dict[str, Any]) -> bool:
-        """Send notification about new published post"""
+        """Send notification about published post (new or republished)"""
         try:
+            logger.info(f"Starting post publication notification for: {post_data.get('title', 'Unknown title')}")
+
             # Get subscribed users
             users = await self.get_subscribed_users("new_posts")
-            
+
             if not users:
-                logger.info("No users subscribed to new post notifications")
+                logger.warning("No users subscribed to new post notifications")
                 return True
+
+            logger.info(f"Sending notification to {len(users)} users")
             
             # Prepare email context
             context = {
@@ -203,17 +212,22 @@ class EmailService:
             
             for i in range(0, len(recipients), batch_size):
                 batch = recipients[i:i + batch_size]
-                subject = f"📝 Nuevo post: {post_data.get('title', 'Sin título')}"
-                
+                subject = f"📝 Entrada publicada: {post_data.get('title', 'Sin título')}"
+
+                logger.info(f"Sending batch {i//batch_size + 1}/{(len(recipients) + batch_size - 1) // batch_size} to {len(batch)} recipients")
+
                 success = await self.send_email(
                     recipients=batch,
                     subject=subject,
                     html_body=html_body
                 )
-                
-                if not success:
-                    logger.warning(f"Failed to send batch {i//batch_size + 1}")
-            
+
+                if success:
+                    logger.info(f"Batch {i//batch_size + 1} sent successfully")
+                else:
+                    logger.error(f"Failed to send batch {i//batch_size + 1}")
+
+            logger.info(f"Completed new post notification process for {len(recipients)} total recipients")
             return True
             
         except Exception as e:

@@ -335,12 +335,18 @@ async def publish_post(
     # Populate category name
     updated_post = await populate_category_name(updated_post)
     
-    # Send email notification if post is newly published
+    # Send email notification whenever a post is published (regardless of previous state)
     was_published = post.get("is_published", False)
     is_now_published = updated_post.get("is_published", False)
-    
-    if not was_published and is_now_published:
+
+    print(f"Email notification check: was_published={was_published}, is_now_published={is_now_published}")
+
+    # Send notification if the post is being published (regardless if it was published before)
+    if is_now_published and publish_data.is_published:
+        print(f"Adding email notification task for post: {updated_post.get('title', 'Unknown')} (publish action)")
         background_tasks.add_task(email_service.send_new_post_notification, updated_post)
+    else:
+        print("Skipping email notification - post is not being published or is being unpublished")
 
     return PostResponse(**updated_post)
 

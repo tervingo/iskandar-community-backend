@@ -142,6 +142,50 @@ async def update_email_preferences(
             detail=f"Failed to update email preferences: {str(e)}"
         )
 
+@router.get("/debug/subscriptions")
+async def debug_email_subscriptions(
+    current_user: TokenData = Depends(get_current_active_user)
+):
+    """Debug endpoint to check email subscription status of all users (Admin only)"""
+
+    # Check if user is admin
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can access debug information"
+        )
+
+    try:
+        collection = get_collection("users")
+        users_debug = []
+
+        async for user in collection.find({"is_active": True}):
+            email_prefs = user.get("email_preferences", {})
+            users_debug.append({
+                "name": user["name"],
+                "email": user["email"],
+                "is_active": user.get("is_active", False),
+                "email_preferences": email_prefs,
+                "subscribed_to_new_posts": email_prefs.get("new_posts", False),
+                "subscribed_to_admin": email_prefs.get("admin_notifications", False)
+            })
+
+        # Also get the count of subscribed users via email service
+        subscribed_users = await email_service.get_subscribed_users("new_posts")
+
+        return {
+            "total_active_users": len(users_debug),
+            "subscribed_to_new_posts": len(subscribed_users),
+            "users_detail": users_debug,
+            "email_service_enabled": email_service.email_enabled
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get debug information: {str(e)}"
+        )
+
 @router.get("/preferences")
 async def get_email_preferences(
     current_user: TokenData = Depends(get_current_active_user)
