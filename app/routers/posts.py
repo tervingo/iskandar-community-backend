@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, status, Depends, BackgroundTasks
 from typing import List
 from bson import ObjectId
-from app.models.post import PostModel, PostCreate, PostUpdate, PostResponse, PostPublish
+from app.models.post import PostModel, PostCreate, PostUpdate, PostResponse, PostPublish, PostPinPriority
 from app.models.user import TokenData
 from app.database import get_collection
-from app.auth import get_current_active_user
+from app.auth import get_current_active_user, get_current_admin_user
 from app.services.email_service import email_service
 from datetime import datetime
 
@@ -36,7 +36,8 @@ async def get_all_posts(category_id: str = None):
             raise HTTPException(status_code=400, detail="Invalid category ID format")
         query["category_id"] = category_id
     
-    async for post in collection.find(query).sort("published_at", -1):
+    # Sort by pin_priority (descending) first, then by published_at (descending)
+    async for post in collection.find(query).sort([("pin_priority", -1), ("published_at", -1)]):
         # Convert ObjectId to string and map _id to id
         post["id"] = str(post["_id"])
         post["_id"] = str(post["_id"])
@@ -69,8 +70,15 @@ async def get_all_posts_including_drafts(
         if not ObjectId.is_valid(category_id):
             raise HTTPException(status_code=400, detail="Invalid category ID format")
         query["category_id"] = category_id
-    
-    async for post in collection.find(query).sort("updated_at", -1):
+
+    # Sort by pin_priority (descending) first, then by updated_at (descending) for published posts
+    # For drafts, just sort by updated_at
+    if include_unpublished:
+        sort_criteria = [("updated_at", -1)]
+    else:
+        sort_criteria = [("pin_priority", -1), ("updated_at", -1)]
+
+    async for post in collection.find(query).sort(sort_criteria):
         # Convert ObjectId to string and map _id to id
         post["id"] = str(post["_id"])
         post["_id"] = str(post["_id"])
@@ -315,5 +323,61 @@ async def publish_post(
     
     if not was_published and is_now_published:
         background_tasks.add_task(email_service.send_new_post_notification, updated_post)
-    
+
     return PostResponse(**updated_post)
+
+@router.put("/{post_id}/pin-priority", response_model=PostResponse)
+async def update_post_pin_priority(
+    post_id: str,
+    priority_data: PostPinPriority,
+    current_admin: TokenData = Depends(get_current_admin_user)
+):
+    """Update post pin priority (Admin only)"""
+    if not ObjectId.is_valid(post_id):
+        raise HTTPException(status_code=400, detail="Invalid post ID format")
+
+    collection = get_collection("posts")
+
+    # Check if post exists
+    post = await collection.find_one({"_id": ObjectId(post_id)})
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    update_data = {
+        "pin_priority": priority_data.pin_priority,
+        "updated_at": datetime.utcnow()
+    }
+
+    result = await collection.update_one(
+        {"_id": ObjectId(post_id)},
+        {"$set": update_data}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    updated_post = await collection.find_one({"_id": ObjectId(post_id)})
+    # Convert ObjectId to string and map _id to id
+    updated_post["id"] = str(updated_post["_id"])
+    updated_post["_id"] = str(updated_post["_id"])
+
+    # Populate category name
+    updated_post = await populate_category_name(updated_post)
+
+    return PostResponse(**updated_post)
+
+@router.post("/migrate-pin-priority")
+async def migrate_pin_priority(current_admin: TokenData = Depends(get_current_admin_user)):
+    """Add pin_priority field to existing posts that don't have it (Admin only)"""
+    collection = get_collection("posts")
+
+    # Update all posts that don't have pin_priority field
+    result = await collection.update_many(
+        {"pin_priority": {"$exists": False}},
+        {"$set": {"pin_priority": 0}}
+    )
+
+    return {
+        "message": f"Migration completed. Updated {result.modified_count} posts with default pin_priority",
+        "modified_count": result.modified_count
+    }
