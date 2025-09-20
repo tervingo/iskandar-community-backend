@@ -166,8 +166,8 @@ async def debug_email_subscriptions(
                 "email": user["email"],
                 "is_active": user.get("is_active", False),
                 "email_preferences": email_prefs,
-                "subscribed_to_new_posts": email_prefs.get("new_posts", False),
-                "subscribed_to_admin": email_prefs.get("admin_notifications", False)
+                "subscribed_to_new_posts": email_prefs.get("new_posts", True),
+                "subscribed_to_admin": email_prefs.get("admin_notifications", True)
             })
 
         # Also get the count of subscribed users via email service
@@ -221,14 +221,14 @@ async def test_new_post_notification(
     current_user: TokenData = Depends(get_current_active_user)
 ):
     """Test endpoint to send a sample new post notification"""
-    
+
     # Only allow admins to test
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only administrators can test notifications"
         )
-    
+
     # Create sample post data
     sample_post = {
         "id": "test-post-id",
@@ -238,19 +238,26 @@ async def test_new_post_notification(
         "category_name": "Test Category",
         "is_published": True
     }
-    
+
     try:
+        # First check how many users should receive the email
+        subscribed_users = await email_service.get_subscribed_users("new_posts")
+
         success = await email_service.send_new_post_notification(sample_post)
-        
+
         return {
             "success": success,
-            "message": "Test notification sent successfully" if success else "Failed to send test notification"
+            "message": "Test notification sent successfully" if success else "Failed to send test notification",
+            "email_service_enabled": email_service.email_enabled,
+            "subscribed_users_count": len(subscribed_users),
+            "subscribed_users": [{"name": u["name"], "email": u["email"]} for u in subscribed_users]
         }
-        
+
     except Exception as e:
         return {
             "success": False,
-            "message": f"Error sending test notification: {str(e)}"
+            "message": f"Error sending test notification: {str(e)}",
+            "email_service_enabled": email_service.email_enabled
         }
 
 @router.put("/admin/users/{user_id}/preferences", response_model=dict)

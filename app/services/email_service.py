@@ -133,21 +133,36 @@ class EmailService:
         """Get users subscribed to specific notification types"""
         try:
             collection = get_collection("users")
+            # Query finds users who are either:
+            # 1. Explicitly subscribed (email_preferences.new_posts: true)
+            # 2. Don't have the preference set (defaults to true)
+            # 3. Excludes users who explicitly opted out (email_preferences.new_posts: false)
             query = {
                 "is_active": True,
-                f"email_preferences.{notification_type}": True
+                "$or": [
+                    {f"email_preferences.{notification_type}": True},
+                    {f"email_preferences.{notification_type}": {"$exists": False}},
+                    {"email_preferences": {"$exists": False}}
+                ]
             }
 
             logger.info(f"Searching for users with query: {query}")
 
             users = []
             async for user in collection.find(query):
-                logger.info(f"Found subscribed user: {user['name']} ({user['email']}) - preferences: {user.get('email_preferences', 'No preferences')}")
-                users.append({
-                    "id": str(user["_id"]),
-                    "name": user["name"],
-                    "email": user["email"]
-                })
+                # Double-check subscription status to respect explicit opt-outs
+                email_prefs = user.get("email_preferences", {})
+                is_subscribed = email_prefs.get(notification_type, True)  # Default to True
+
+                if is_subscribed:
+                    logger.info(f"Found subscribed user: {user['name']} ({user['email']}) - preferences: {email_prefs}")
+                    users.append({
+                        "id": str(user["_id"]),
+                        "name": user["name"],
+                        "email": user["email"]
+                    })
+                else:
+                    logger.info(f"Skipping user who opted out: {user['name']} ({user['email']}) - preferences: {email_prefs}")
 
             logger.info(f"Total subscribed users found: {len(users)}")
             return users
