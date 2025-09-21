@@ -185,9 +185,42 @@ class BackupService:
 
         logger.info(f"Archive created: {round(os.path.getsize(zip_path) / (1024 * 1024), 2)} MB")
 
+    async def _ensure_backup_folder_exists(self) -> bool:
+        """Ensure the backup folder exists in Dropbox"""
+        try:
+            url = "https://api.dropboxapi.com/2/files/create_folder_v2"
+            headers = {
+                "Authorization": f"Bearer {self.dropbox_access_token}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "path": "/yskandar_backups",
+                "autorename": False
+            }
+
+            response = requests.post(url, headers=headers, json=data)
+
+            if response.status_code == 200:
+                logger.info("Backup folder created successfully")
+                return True
+            elif response.status_code == 409:
+                # Folder already exists
+                logger.info("Backup folder already exists")
+                return True
+            else:
+                logger.warning(f"Failed to create backup folder: {response.status_code}")
+                return False
+
+        except Exception as e:
+            logger.warning(f"Error creating backup folder: {e}")
+            return False
+
     async def _upload_to_dropbox(self, file_path: str, remote_filename: str) -> Dict[str, Any]:
         """Upload file to Dropbox"""
         try:
+            # Ensure backup folder exists
+            await self._ensure_backup_folder_exists()
+
             url = "https://content.dropboxapi.com/2/files/upload"
 
             headers = {
@@ -313,10 +346,26 @@ class BackupService:
                     "backups": backup_files,
                     "total_count": len(backup_files)
                 }
+            elif response.status_code == 409:
+                # Folder doesn't exist yet - this is normal for first-time setup
+                logger.info("Backup folder doesn't exist yet - will be created on first backup")
+                return {
+                    "success": True,
+                    "backups": [],
+                    "total_count": 0,
+                    "message": "No backups found - folder will be created on first backup"
+                }
             else:
+                error_detail = ""
+                try:
+                    error_response = response.json()
+                    error_detail = f" - {error_response.get('error_summary', 'Unknown error')}"
+                except:
+                    pass
+
                 return {
                     "success": False,
-                    "message": f"Failed to list backups: {response.status_code}"
+                    "message": f"Failed to list backups: HTTP {response.status_code}{error_detail}"
                 }
 
         except Exception as e:
