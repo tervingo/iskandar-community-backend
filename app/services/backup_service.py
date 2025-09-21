@@ -261,15 +261,31 @@ class BackupService:
 
             url = "https://content.dropboxapi.com/2/files/upload"
 
+            # Dropbox API arguments
+            api_args = {
+                "path": f"/yskandar_backups/{remote_filename}",
+                "mode": "add",
+                "autorename": True
+            }
+
             headers = {
                 "Authorization": f"Bearer {self.dropbox_access_token}",
                 "Content-Type": "application/octet-stream",
-                "Dropbox-API-Arg": json.dumps({
-                    "path": f"/yskandar_backups/{remote_filename}",
-                    "mode": "add",
-                    "autorename": True
-                })
+                "Dropbox-API-Arg": json.dumps(api_args)
             }
+
+            file_size = os.path.getsize(file_path)
+            file_size_mb = file_size / (1024 * 1024)
+
+            logger.info(f"Upload args: {api_args}")
+            logger.info(f"File size: {file_size} bytes ({file_size_mb:.2f} MB)")
+
+            # Check Dropbox file size limit (150 MB for simple upload)
+            if file_size > 150 * 1024 * 1024:
+                return {
+                    "success": False,
+                    "message": f"File too large ({file_size_mb:.2f} MB). Dropbox simple upload limit is 150 MB. Need to implement upload sessions."
+                }
 
             with open(file_path, 'rb') as f:
                 response = requests.post(url, headers=headers, data=f, timeout=600)
