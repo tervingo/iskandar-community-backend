@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import connect_to_mongo, close_mongo_connection
-from app.routers import posts, comments, chat, files, auth, categories, notifications, news, activity_logs
+from app.routers import posts, comments, chat, files, auth, categories, notifications, news, activity_logs, backup
+from app.services.scheduler_service import scheduler_service
 import socketio
 import os
 from dotenv import load_dotenv
@@ -34,9 +35,13 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_db_client():
     await connect_to_mongo()
+    # Start the backup scheduler
+    await scheduler_service.start()
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    # Stop the backup scheduler
+    await scheduler_service.stop()
     await close_mongo_connection()
 
 @app.get("/")
@@ -56,6 +61,7 @@ app.include_router(files.router, prefix="/files", tags=["files"])
 app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 app.include_router(news.router, prefix="/news", tags=["news"])
 app.include_router(activity_logs.router, prefix="/activity-logs", tags=["activity_logs"])
+app.include_router(backup.router, prefix="/backup", tags=["backup"])
 
 socket_app = socketio.ASGIApp(sio, app)
 
