@@ -111,10 +111,41 @@ async def backup_status(
     mongodb_configured = bool(backup_service.mongodb_uri)
     dropbox_configured = bool(backup_service.dropbox_access_token)
 
+    # Test Dropbox connection if configured
+    dropbox_test_result = None
+    if dropbox_configured:
+        try:
+            import requests
+            headers = {"Authorization": f"Bearer {backup_service.dropbox_access_token}"}
+            response = requests.post(
+                "https://api.dropboxapi.com/2/users/get_current_account",
+                headers=headers,
+                timeout=10
+            )
+            if response.status_code == 200:
+                account_info = response.json()
+                dropbox_test_result = {
+                    "status": "connected",
+                    "account_name": account_info.get("name", {}).get("display_name", "Unknown"),
+                    "email": account_info.get("email", "Unknown")
+                }
+            else:
+                dropbox_test_result = {
+                    "status": "failed",
+                    "error": f"HTTP {response.status_code}",
+                    "details": response.text[:200]
+                }
+        except Exception as e:
+            dropbox_test_result = {
+                "status": "error",
+                "error": str(e)
+            }
+
     return {
         "service_enabled": backup_service.backup_enabled,
         "mongodb_configured": mongodb_configured,
         "dropbox_configured": dropbox_configured,
+        "dropbox_test": dropbox_test_result,
         "configuration": {
             "mongodb_uri_set": mongodb_configured,
             "dropbox_token_set": dropbox_configured,

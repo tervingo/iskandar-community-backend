@@ -283,10 +283,21 @@ class BackupService:
                     "file_id": result.get("id")
                 }
             else:
-                logger.error(f"Dropbox upload failed: {response.status_code} - {response.text}")
+                error_text = response.text
+                logger.error(f"Dropbox upload failed: {response.status_code}")
+                logger.error(f"Response body: {error_text}")
+
+                # Try to parse error details
+                error_detail = ""
+                try:
+                    error_json = response.json()
+                    error_detail = f" - {error_json.get('error_summary', error_json.get('error', 'Unknown error'))}"
+                except:
+                    error_detail = f" - {error_text[:200]}"
+
                 return {
                     "success": False,
-                    "message": f"Dropbox upload failed: {response.status_code}"
+                    "message": f"Dropbox upload failed: {response.status_code}{error_detail}"
                 }
 
         except Exception as e:
