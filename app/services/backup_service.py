@@ -3,12 +3,13 @@ import shutil
 import zipfile
 import tempfile
 import logging
+import json
 from datetime import datetime
 from typing import Dict, Any, Optional
 from pathlib import Path
-import subprocess
 import requests
-import json
+from bson import json_util
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -120,58 +121,95 @@ class BackupService:
                     logger.warning(f"Failed to cleanup temp dir: {e}")
 
     async def _create_mongo_dump(self, output_dir: str) -> Dict[str, Any]:
-        """Create MongoDB dump using mongodump"""
+        """Create MongoDB dump using Python pymongo"""
         try:
-            # Ensure mongodump is available
-            mongodump_cmd = ["mongodump", "--uri", self.mongodb_uri, "--out", output_dir]
+            logger.info(f"Creating MongoDB dump using pymongo...")
 
-            logger.info(f"Running mongodump command...")
-            result = subprocess.run(
-                mongodump_cmd,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minutes timeout
-            )
+            # Connect to MongoDB
+            client = AsyncIOMotorClient(self.mongodb_uri)
+            db_name = self._extract_db_name()
+            db = client[db_name]
 
-            if result.returncode != 0:
-                return {
-                    "success": False,
-                    "message": f"mongodump failed: {result.stderr}"
-                }
+            # Create database dump directory
+            db_dump_dir = os.path.join(output_dir, db_name)
+            os.makedirs(db_dump_dir, exist_ok=True)
 
-            # Analyze dump results
+            # Get list of collections
+            collection_names = await db.list_collection_names()
+            logger.info(f"Found {len(collection_names)} collections: {collection_names}")
+
             collections = []
             total_documents = 0
 
-            db_dump_dir = os.path.join(output_dir, self._extract_db_name())
-            if os.path.exists(db_dump_dir):
-                for file in os.listdir(db_dump_dir):
-                    if file.endswith(".bson"):
-                        collection_name = file.replace(".bson", "")
-                        collections.append(collection_name)
+            # Export each collection
+            for collection_name in collection_names:
+                try:
+                    logger.info(f"Exporting collection: {collection_name}")
 
-                        # Count documents (approximate)
-                        file_size = os.path.getsize(os.path.join(db_dump_dir, file))
-                        estimated_docs = max(1, file_size // 100)  # Rough estimate
-                        total_documents += estimated_docs
+                    collection = db[collection_name]
 
-            logger.info(f"Dump completed: {len(collections)} collections, ~{total_documents} documents")
+                    # Get all documents from collection
+                    documents = []
+                    async for doc in collection.find({}):
+                        documents.append(doc)
+
+                    # Write collection to JSON file
+                    collection_file = os.path.join(db_dump_dir, f"{collection_name}.json")
+                    with open(collection_file, 'w', encoding='utf-8') as f:
+                        # Use json_util to handle MongoDB types (ObjectId, datetime, etc.)
+                        json_data = json_util.dumps(documents, indent=2)
+                        f.write(json_data)
+
+                    # Get collection stats
+                    doc_count = len(documents)
+                    file_size = os.path.getsize(collection_file)
+
+                    collections.append({
+                        "name": collection_name,
+                        "document_count": doc_count,
+                        "file_size_mb": round(file_size / (1024 * 1024), 3)
+                    })
+
+                    total_documents += doc_count
+                    logger.info(f"Exported {collection_name}: {doc_count} documents, {file_size} bytes")
+
+                except Exception as e:
+                    logger.error(f"Error exporting collection {collection_name}: {e}")
+                    # Continue with other collections
+                    continue
+
+            # Close connection
+            client.close()
+
+            # Create database info file
+            db_info = {
+                "database_name": db_name,
+                "export_timestamp": datetime.utcnow().isoformat(),
+                "total_collections": len(collections),
+                "total_documents": total_documents,
+                "collections": collections,
+                "export_method": "pymongo_json",
+                "version": "1.0"
+            }
+
+            info_file = os.path.join(db_dump_dir, "database_info.json")
+            with open(info_file, 'w', encoding='utf-8') as f:
+                json.dump(db_info, f, indent=2)
+
+            logger.info(f"Dump completed: {len(collections)} collections, {total_documents} documents")
 
             return {
                 "success": True,
-                "collections": collections,
-                "total_documents": total_documents
+                "collections": [col["name"] for col in collections],
+                "total_documents": total_documents,
+                "database_info": db_info
             }
 
-        except subprocess.TimeoutExpired:
-            return {
-                "success": False,
-                "message": "mongodump timed out after 5 minutes"
-            }
         except Exception as e:
+            logger.error(f"Error creating MongoDB dump: {e}")
             return {
                 "success": False,
-                "message": f"mongodump error: {str(e)}"
+                "message": f"MongoDB dump error: {str(e)}"
             }
 
     async def _create_zip_archive(self, source_dir: str, zip_path: str) -> None:
