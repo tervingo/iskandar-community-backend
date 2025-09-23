@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 class BackupService:
     def __init__(self):
-        # MongoDB connection
-        self.mongodb_uri = os.getenv("MONGODB_URI", "")
+        # MongoDB connection - try both variable names used in the app
+        self.mongodb_uri = os.getenv("MONGODB_URI", "") or os.getenv("MONGODB_URL", "")
 
         # Dropbox configuration
         self.dropbox_access_token = os.getenv("DROPBOX_ACCESS_TOKEN", "")
@@ -32,14 +32,22 @@ class BackupService:
             logger.info("Backup service initialized successfully")
 
     def _extract_db_name(self) -> str:
-        """Extract database name from MongoDB URI"""
+        """Extract database name from environment variable or URI"""
         try:
-            # Extract DB name from URI like: mongodb+srv://user:pass@cluster.mongodb.net/dbname
+            # First try to get from environment variable (same as main app)
+            db_name = os.getenv("DATABASE_NAME")
+            if db_name:
+                return db_name
+
+            # Fallback: Extract DB name from URI like: mongodb+srv://user:pass@cluster.mongodb.net/dbname
             if "//" in self.mongodb_uri and "/" in self.mongodb_uri.split("//")[1]:
-                return self.mongodb_uri.split("/")[-1].split("?")[0]
-            return "iskandar_db"  # fallback
+                uri_db_name = self.mongodb_uri.split("/")[-1].split("?")[0]
+                if uri_db_name:
+                    return uri_db_name
+
+            return "iskandar_community"  # fallback to match main app default
         except:
-            return "iskandar_db"
+            return "iskandar_community"
 
     async def _refresh_dropbox_token(self) -> bool:
         """Refresh Dropbox access token using refresh token"""
@@ -179,11 +187,30 @@ class BackupService:
         """Create MongoDB dump using Python pymongo"""
         try:
             logger.info(f"Creating MongoDB dump using pymongo...")
+            logger.info(f"MongoDB URI: {self.mongodb_uri[:50]}...")  # Log partial URI for debugging
 
             # Connect to MongoDB
             client = AsyncIOMotorClient(self.mongodb_uri)
             db_name = self._extract_db_name()
+            logger.info(f"Extracted database name: {db_name}")
+
             db = client[db_name]
+
+            # Test connection by getting server info
+            try:
+                server_info = await client.server_info()
+                logger.info(f"Connected to MongoDB version: {server_info.get('version', 'unknown')}")
+            except Exception as e:
+                logger.error(f"Failed to connect to MongoDB: {e}")
+                raise
+
+            # List all databases to debug
+            try:
+                admin_db = client.admin
+                db_list = await admin_db.command("listDatabases")
+                logger.info(f"Available databases: {[db['name'] for db in db_list.get('databases', [])]}")
+            except Exception as e:
+                logger.warning(f"Could not list databases (permissions issue?): {e}")
 
             # Create database dump directory
             db_dump_dir = os.path.join(output_dir, db_name)
@@ -191,7 +218,7 @@ class BackupService:
 
             # Get list of collections
             collection_names = await db.list_collection_names()
-            logger.info(f"Found {len(collection_names)} collections: {collection_names}")
+            logger.info(f"Found {len(collection_names)} collections in '{db_name}': {collection_names}")
 
             collections = []
             total_documents = 0
