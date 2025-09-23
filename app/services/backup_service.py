@@ -21,6 +21,9 @@ class BackupService:
 
         # Dropbox configuration
         self.dropbox_access_token = os.getenv("DROPBOX_ACCESS_TOKEN", "")
+        self.dropbox_refresh_token = os.getenv("DROPBOX_REFRESH_TOKEN", "")
+        self.dropbox_client_id = os.getenv("DROPBOX_CLIENT_ID", "")
+        self.dropbox_client_secret = os.getenv("DROPBOX_CLIENT_SECRET", "")
         self.backup_enabled = bool(self.mongodb_uri and self.dropbox_access_token)
 
         if not self.backup_enabled:
@@ -37,6 +40,58 @@ class BackupService:
             return "iskandar_db"  # fallback
         except:
             return "iskandar_db"
+
+    async def _refresh_dropbox_token(self) -> bool:
+        """Refresh Dropbox access token using refresh token"""
+        if not all([self.dropbox_refresh_token, self.dropbox_client_id, self.dropbox_client_secret]):
+            logger.warning("Cannot refresh Dropbox token - missing refresh token or client credentials")
+            return False
+
+        try:
+            url = "https://api.dropboxapi.com/oauth2/token"
+            data = {
+                "grant_type": "refresh_token",
+                "refresh_token": self.dropbox_refresh_token,
+                "client_id": self.dropbox_client_id,
+                "client_secret": self.dropbox_client_secret
+            }
+
+            response = requests.post(url, data=data)
+
+            if response.status_code == 200:
+                token_data = response.json()
+                self.dropbox_access_token = token_data.get("access_token")
+                logger.info("Successfully refreshed Dropbox access token")
+                return True
+            else:
+                error_data = response.json() if response.headers.get('content-type') == 'application/json' else {}
+                logger.error(f"Failed to refresh Dropbox token: {response.status_code} - {error_data}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error refreshing Dropbox token: {e}")
+            return False
+
+    async def _make_dropbox_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """Make a Dropbox API request with automatic token refresh on 401 errors"""
+        headers = kwargs.get("headers", {})
+        headers["Authorization"] = f"Bearer {self.dropbox_access_token}"
+        kwargs["headers"] = headers
+
+        response = requests.request(method, url, **kwargs)
+
+        # If we get a 401, try to refresh the token and retry once
+        if response.status_code == 401 and self.dropbox_refresh_token:
+            logger.info("Received 401 from Dropbox, attempting to refresh token")
+            if await self._refresh_dropbox_token():
+                # Update the authorization header and retry
+                headers["Authorization"] = f"Bearer {self.dropbox_access_token}"
+                kwargs["headers"] = headers
+                response = requests.request(method, url, **kwargs)
+                if response.status_code != 401:
+                    logger.info("Request succeeded after token refresh")
+
+        return response
 
     async def create_backup(self) -> Dict[str, Any]:
         """Create a complete database backup and upload to Dropbox"""
@@ -228,7 +283,6 @@ class BackupService:
         try:
             url = "https://api.dropboxapi.com/2/files/create_folder_v2"
             headers = {
-                "Authorization": f"Bearer {self.dropbox_access_token}",
                 "Content-Type": "application/json"
             }
             data = {
@@ -236,7 +290,7 @@ class BackupService:
                 "autorename": False
             }
 
-            response = requests.post(url, headers=headers, json=data)
+            response = await self._make_dropbox_request("POST", url, headers=headers, json=data)
 
             if response.status_code == 200:
                 logger.info("Backup folder created successfully")
@@ -269,7 +323,6 @@ class BackupService:
             }
 
             headers = {
-                "Authorization": f"Bearer {self.dropbox_access_token}",
                 "Content-Type": "application/octet-stream",
                 "Dropbox-API-Arg": json.dumps(api_args)
             }
@@ -288,7 +341,7 @@ class BackupService:
                 }
 
             with open(file_path, 'rb') as f:
-                response = requests.post(url, headers=headers, data=f, timeout=600)
+                response = await self._make_dropbox_request("POST", url, headers=headers, data=f, timeout=600)
 
             if response.status_code == 200:
                 result = response.json()
@@ -329,12 +382,11 @@ class BackupService:
             # List files in Dropbox backup folder
             url = "https://api.dropboxapi.com/2/files/list_folder"
             headers = {
-                "Authorization": f"Bearer {self.dropbox_access_token}",
                 "Content-Type": "application/json"
             }
             data = {"path": "/yskandar_backups"}
 
-            response = requests.post(url, headers=headers, json=data)
+            response = await self._make_dropbox_request("POST", url, headers=headers, json=data)
 
             if response.status_code == 200:
                 files = response.json().get("entries", [])
@@ -363,12 +415,11 @@ class BackupService:
         try:
             url = "https://api.dropboxapi.com/2/files/delete_v2"
             headers = {
-                "Authorization": f"Bearer {self.dropbox_access_token}",
                 "Content-Type": "application/json"
             }
             data = {"path": file_path}
 
-            response = requests.post(url, headers=headers, json=data)
+            response = await self._make_dropbox_request("POST", url, headers=headers, json=data)
 
             if response.status_code == 200:
                 logger.info(f"Deleted old backup: {file_path}")
@@ -383,12 +434,11 @@ class BackupService:
         try:
             url = "https://api.dropboxapi.com/2/files/list_folder"
             headers = {
-                "Authorization": f"Bearer {self.dropbox_access_token}",
                 "Content-Type": "application/json"
             }
             data = {"path": "/yskandar_backups"}
 
-            response = requests.post(url, headers=headers, json=data)
+            response = await self._make_dropbox_request("POST", url, headers=headers, json=data)
 
             if response.status_code == 200:
                 files = response.json().get("entries", [])

@@ -116,10 +116,9 @@ async def backup_status(
     if dropbox_configured:
         try:
             import requests
-            headers = {"Authorization": f"Bearer {backup_service.dropbox_access_token}"}
-            response = requests.post(
+            response = await backup_service._make_dropbox_request(
+                "POST",
                 "https://api.dropboxapi.com/2/users/get_current_account",
-                headers=headers,
                 timeout=10
             )
             if response.status_code == 200:
