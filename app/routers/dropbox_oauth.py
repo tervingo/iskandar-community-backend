@@ -162,8 +162,8 @@ async def dropbox_oauth_callback(
 
     return {
         "message": "Dropbox authorization successful",
-        "access_token": token_result.get("access_token")[:10] + "..." if token_result.get("access_token") else None,
-        "refresh_token": token_result.get("refresh_token")[:10] + "..." if token_result.get("refresh_token") else None,
+        "access_token": token_result.get("access_token"),
+        "refresh_token": token_result.get("refresh_token"),
         "expires_in": token_result.get("expires_in"),
         "instructions": {
             "access_token": "Set DROPBOX_ACCESS_TOKEN environment variable with the access_token",
@@ -192,7 +192,7 @@ async def refresh_dropbox_token():
 
     return {
         "message": "Token refreshed successfully",
-        "access_token": result.get("access_token")[:10] + "..." if result.get("access_token") else None,
+        "access_token": result.get("access_token"),
         "expires_in": result.get("expires_in"),
         "instructions": "Update DROPBOX_ACCESS_TOKEN environment variable with the new access_token"
     }
