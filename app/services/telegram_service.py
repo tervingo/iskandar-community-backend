@@ -181,6 +181,37 @@ class TelegramService:
 
         return results
 
+    async def send_admin_chat_notification(
+        self,
+        admin_telegram_ids: List[str],
+        user_name: str,
+        message_preview: str,
+        reason: str
+    ) -> List[Dict[str, Any]]:
+        """Send chat activity notification to admin users"""
+        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+        formatted_message = f"""
+💬 <b>Actividad de Chat en Yskandar</b>
+
+👤 <b>Usuario:</b> {user_name}
+📝 <b>Mensaje:</b> "{message_preview}"
+🕐 <b>Fecha y hora:</b> {timestamp}
+📊 <b>Razón:</b> {reason}
+
+🌐 <i>Monitoreo de chat para administradores</i>
+        """.strip()
+
+        results = []
+        for admin_id in admin_telegram_ids:
+            result = await self.send_message(admin_id, formatted_message)
+            results.append({
+                "admin_id": admin_id,
+                **result
+            })
+
+        return results
+
     async def send_admin_notification(
         self,
         admin_telegram_ids: List[str],
