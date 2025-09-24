@@ -50,7 +50,7 @@ async def login(user_credentials: UserLogin, request: Request):
             request=request
         )
 
-        # Send Telegram notification if configured
+        # Send Telegram notification to the user if configured
         if (user.get("telegram_id") and
             user.get("telegram_preferences", {}).get("enabled", False) and
             user.get("telegram_preferences", {}).get("login_notifications", True)):
@@ -61,7 +61,32 @@ async def login(user_credentials: UserLogin, request: Request):
                 )
             except Exception as e:
                 # Don't fail login if Telegram notification fails
-                print(f"Failed to send Telegram login notification: {e}")
+                print(f"Failed to send Telegram login notification to user: {e}")
+
+        # Send Telegram notification to all admins about any user login
+        try:
+            users_collection = get_collection("users")
+            admin_users = await users_collection.find({
+                "role": "admin",
+                "is_active": True,
+                "telegram_id": {"$exists": True, "$ne": None},
+                "telegram_preferences.enabled": True,
+                "telegram_preferences.admin_notifications": True
+            }).to_list(None)
+
+            if admin_users:
+                admin_telegram_ids = [admin["telegram_id"] for admin in admin_users]
+
+                # Use the admin notification method for login monitoring
+                await telegram_service.send_admin_login_notification(
+                    admin_telegram_ids,
+                    user["name"],
+                    user.get("role", "normal")
+                )
+
+        except Exception as e:
+            # Don't fail login if admin notification fails
+            print(f"Failed to send admin login notifications: {e}")
 
         access_token = create_user_token(user)
 

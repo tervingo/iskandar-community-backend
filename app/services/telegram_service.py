@@ -150,6 +150,37 @@ class TelegramService:
 
         return await self.send_message(user_telegram_id, message)
 
+    async def send_admin_login_notification(
+        self,
+        admin_telegram_ids: List[str],
+        user_name: str,
+        user_role: str
+    ) -> List[Dict[str, Any]]:
+        """Send login notification to admin users"""
+        role_emoji = "👑" if user_role == "admin" else "👤"
+        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+        formatted_message = f"""
+🔐 <b>Login Detectado en Yskandar</b>
+
+{role_emoji} <b>Usuario:</b> {user_name}
+🛡️ <b>Rol:</b> {user_role.title()}
+🕐 <b>Fecha y hora:</b> {timestamp}
+🌐 <b>Aplicación:</b> Yskandar Community
+
+ℹ️ <i>Monitoreo de accesos para administradores</i>
+        """.strip()
+
+        results = []
+        for admin_id in admin_telegram_ids:
+            result = await self.send_message(admin_id, formatted_message)
+            results.append({
+                "admin_id": admin_id,
+                **result
+            })
+
+        return results
+
     async def send_admin_notification(
         self,
         admin_telegram_ids: List[str],
