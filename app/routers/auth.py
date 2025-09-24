@@ -14,6 +14,7 @@ from app.auth import (
 from datetime import datetime, timedelta
 from app.utils.presence import get_online_users, cleanup_offline_users, is_user_online
 from app.services.activity_logger import ActivityLogger
+from app.services.telegram_service import telegram_service
 
 router = APIRouter()
 
@@ -48,6 +49,19 @@ async def login(user_credentials: UserLogin, request: Request):
             success=True,
             request=request
         )
+
+        # Send Telegram notification if configured
+        if (user.get("telegram_id") and
+            user.get("telegram_preferences", {}).get("enabled", False) and
+            user.get("telegram_preferences", {}).get("login_notifications", True)):
+            try:
+                await telegram_service.send_login_notification(
+                    user["name"],
+                    user["telegram_id"]
+                )
+            except Exception as e:
+                # Don't fail login if Telegram notification fails
+                print(f"Failed to send Telegram login notification: {e}")
 
         access_token = create_user_token(user)
 
