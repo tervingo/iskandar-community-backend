@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from bson import ObjectId
 from datetime import datetime
 
-from app.models.user import UserModel, TelegramPreferences
+from app.models.user import UserModel, TelegramPreferences, TokenData
 from app.database import get_collection
 from app.auth import get_current_active_user, get_current_admin_user
 from app.services.telegram_service import telegram_service
@@ -19,7 +19,7 @@ class TelegramTestMessage(BaseModel):
     message: str
 
 @router.get("/bot-info")
-async def get_bot_info(current_user: dict = Depends(get_current_admin_user)):
+async def get_bot_info(current_user: TokenData = Depends(get_current_admin_user)):
     """Get Telegram bot information (admin only)"""
     result = await telegram_service.get_bot_info()
     return result
@@ -27,7 +27,7 @@ async def get_bot_info(current_user: dict = Depends(get_current_admin_user)):
 @router.post("/configure")
 async def configure_telegram(
     config: TelegramConfig,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: TokenData = Depends(get_current_active_user)
 ):
     """Configure user's Telegram notifications"""
     try:
@@ -41,7 +41,7 @@ async def configure_telegram(
         }
 
         result = await users_collection.update_one(
-            {"_id": ObjectId(current_user["id"])},
+            {"_id": ObjectId(current_user.user_id)},
             {"$set": update_data}
         )
 
@@ -63,11 +63,11 @@ async def configure_telegram(
         )
 
 @router.get("/config")
-async def get_telegram_config(current_user: dict = Depends(get_current_active_user)):
+async def get_telegram_config(current_user: TokenData = Depends(get_current_active_user)):
     """Get user's current Telegram configuration"""
     try:
         users_collection = get_collection("users")
-        user = await users_collection.find_one({"_id": ObjectId(current_user["id"])})
+        user = await users_collection.find_one({"_id": ObjectId(current_user.user_id)})
 
         if not user:
             raise HTTPException(
@@ -95,12 +95,12 @@ async def get_telegram_config(current_user: dict = Depends(get_current_active_us
 @router.post("/test")
 async def test_telegram_notification(
     test_data: TelegramTestMessage,
-    current_user: dict = Depends(get_current_active_user)
+    current_user: TokenData = Depends(get_current_active_user)
 ):
     """Test Telegram notification"""
     try:
         users_collection = get_collection("users")
-        user = await users_collection.find_one({"_id": ObjectId(current_user["id"])})
+        user = await users_collection.find_one({"_id": ObjectId(current_user.user_id)})
 
         if not user or not user.get("telegram_id"):
             raise HTTPException(
@@ -124,7 +124,7 @@ async def test_telegram_notification(
 @router.post("/admin/broadcast")
 async def send_admin_broadcast(
     message_data: TelegramTestMessage,
-    current_user: dict = Depends(get_current_admin_user)
+    current_user: TokenData = Depends(get_current_admin_user)
 ):
     """Send broadcast message to all users with Telegram enabled (admin only)"""
     try:
@@ -171,7 +171,7 @@ async def send_admin_broadcast(
         )
 
 @router.get("/stats")
-async def get_telegram_stats(current_user: dict = Depends(get_current_admin_user)):
+async def get_telegram_stats(current_user: TokenData = Depends(get_current_admin_user)):
     """Get Telegram usage statistics (admin only)"""
     try:
         users_collection = get_collection("users")
