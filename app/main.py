@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import connect_to_mongo, close_mongo_connection
-from app.routers import posts, comments, chat, files, auth, categories, notifications, news, activity_logs, backup, dropbox_oauth, telegram
+from app.routers import posts, comments, chat, files, auth, categories, notifications, news, activity_logs, backup, dropbox_oauth, telegram, video_calls
 from app.services.scheduler_service import scheduler_service
 from app.services.telegram_service import telegram_service
 from app.database import get_collection
@@ -68,6 +68,7 @@ app.include_router(activity_logs.router, prefix="/activity-logs", tags=["activit
 app.include_router(backup.router, prefix="/backup", tags=["backup"])
 app.include_router(dropbox_oauth.router, tags=["dropbox-oauth"])
 app.include_router(telegram.router, tags=["telegram"])
+app.include_router(video_calls.router, prefix="/video-calls", tags=["video_calls"])
 
 socket_app = socketio.ASGIApp(sio, app)
 
@@ -131,10 +132,99 @@ async def user_offline(sid, user_id):
     if user_id in online_users:
         user_name = online_users[user_id]['name']
         del online_users[user_id]
-        
+
         # Broadcast updated user list to all clients
         await sio.emit('users_online_update', list(online_users.values()))
         print(f"User {user_name} went offline")
+
+@sio.event
+async def send_video_call_invitation(sid, data):
+    """Handle video call invitation"""
+    caller_id = data.get('caller_id')
+    callee_id = data.get('callee_id')
+    call_id = data.get('call_id')
+    channel_name = data.get('channel_name')
+    call_type = data.get('call_type')
+
+    # Find the target user's socket ID
+    target_socket_id = None
+    if callee_id in online_users:
+        target_socket_id = online_users[callee_id]['socket_id']
+
+    if target_socket_id:
+        # Send invitation to specific user
+        await sio.emit('video_call_invitation', {
+            'call_id': call_id,
+            'caller_name': data.get('caller_name'),
+            'caller_id': caller_id,
+            'channel_name': channel_name,
+            'call_type': call_type
+        }, room=target_socket_id)
+        print(f"Sent video call invitation from {caller_id} to {callee_id}")
+
+@sio.event
+async def video_call_response(sid, data):
+    """Handle video call response (accept/decline)"""
+    caller_id = data.get('caller_id')
+    response = data.get('response')  # 'accepted' or 'declined'
+    call_id = data.get('call_id')
+
+    # Find the caller's socket ID
+    target_socket_id = None
+    if caller_id in online_users:
+        target_socket_id = online_users[caller_id]['socket_id']
+
+    if target_socket_id:
+        # Send response to caller
+        await sio.emit('video_call_response', {
+            'call_id': call_id,
+            'response': response,
+            'responder_name': data.get('responder_name')
+        }, room=target_socket_id)
+        print(f"Video call {response} for call {call_id}")
+
+@sio.event
+async def join_video_call_room(sid, data):
+    """Handle user joining video call room"""
+    call_id = data.get('call_id')
+    user_name = data.get('user_name')
+
+    # Join the socket room for this call
+    await sio.enter_room(sid, f"video_call_{call_id}")
+
+    # Notify others in the room
+    await sio.emit('user_joined_call', {
+        'user_name': user_name
+    }, room=f"video_call_{call_id}", skip_sid=sid)
+
+@sio.event
+async def leave_video_call_room(sid, data):
+    """Handle user leaving video call room"""
+    call_id = data.get('call_id')
+    user_name = data.get('user_name')
+
+    # Leave the socket room for this call
+    await sio.leave_room(sid, f"video_call_{call_id}")
+
+    # Notify others in the room
+    await sio.emit('user_left_call', {
+        'user_name': user_name
+    }, room=f"video_call_{call_id}")
+
+@sio.event
+async def video_call_signal(sid, data):
+    """Handle video call signaling (screen share, mute, etc.)"""
+    call_id = data.get('call_id')
+    signal_type = data.get('signal_type')
+    signal_data = data.get('signal_data')
+    user_name = data.get('user_name')
+
+    # Broadcast signal to others in the call
+    await sio.emit('video_call_signal', {
+        'signal_type': signal_type,
+        'signal_data': signal_data,
+        'user_name': user_name
+    }, room=f"video_call_{call_id}", skip_sid=sid)
 
 async def check_and_send_chat_notification(message_data):
     """Check if we should send chat activity notification to admins"""
