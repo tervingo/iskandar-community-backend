@@ -42,9 +42,12 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def verify_token(token: str) -> TokenData:
     """Verify and decode JWT token"""
     try:
+        print(f"Verifying token: {token[:50]}...")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        print(f"Token payload: {payload}")
         email: str = payload.get("sub")
         if email is None:
+            print("Error: No email in token payload")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials"
@@ -57,8 +60,10 @@ def verify_token(token: str) -> TokenData:
             role=UserRole(payload.get("role")),
             is_active=payload.get("is_active", True)
         )
+        print(f"Token verification successful for user: {token_data.name}")
         return token_data
-    except jwt.PyJWTError:
+    except jwt.PyJWTError as e:
+        print(f"JWT Error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials"
