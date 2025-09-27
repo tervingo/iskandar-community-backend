@@ -153,21 +153,25 @@ async def send_video_call_invitation(sid, data):
 
     if target_socket_id:
         # Send invitation to specific user
-        await sio.emit('video_call_invitation', {
+        invitation_data = {
             'call_id': call_id,
             'caller_name': data.get('caller_name'),
             'caller_id': caller_id,
             'channel_name': channel_name,
             'call_type': call_type
-        }, room=target_socket_id)
+        }
+        print(f"Sending video call invitation: {invitation_data}")
+        await sio.emit('video_call_invitation', invitation_data, room=target_socket_id)
         print(f"Sent video call invitation from {caller_id} to {callee_id}")
 
 @sio.event
 async def video_call_response(sid, data):
     """Handle video call response (accept/decline)"""
+    print(f"Received video_call_response: {data}")
     caller_id = data.get('caller_id')
     response = data.get('response')  # 'accepted' or 'declined'
     call_id = data.get('call_id')
+    print(f"Extracted call_id: {call_id} (type: {type(call_id)})")
 
     # Find the caller's socket ID
     target_socket_id = None
