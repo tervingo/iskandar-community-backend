@@ -48,7 +48,7 @@ async def create_video_call(
     try:
         print(f"Creating video call with data: {call_data}")
         print(f"Current user: {current_user.name} ({current_user.user_id})")
-        print(f"Current user details: email={current_user.email}, is_admin={current_user.is_admin}")
+        print(f"Current user details: email={current_user.email}, role={current_user.role}")
 
         collection = get_collection("video_calls")
 
