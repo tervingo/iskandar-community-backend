@@ -23,20 +23,48 @@ async def video_calls_health():
 
 @router.post("/generate-token", response_model=Dict[str, str])
 async def generate_agora_token(
-    channel_name: str,
+    call_id: str,
     current_user: TokenData = Depends(get_current_active_user)
 ):
     """Generate Agora RTC token for video call"""
-    # For now, return a temporary token placeholder
-    # In production, you would integrate with Agora token server
-    token = f"temp_token_{secrets.token_urlsafe(32)}"
+    try:
+        print(f"Generating token for call_id: {call_id}")
 
-    return {
-        "token": token,
-        "channel": channel_name,
-        "uid": str(current_user.user_id),
-        "appId": "your_agora_app_id"  # This should come from environment
-    }
+        # Look up the call to get the channel name
+        collection = get_collection("video_calls")
+        call = await collection.find_one({"_id": ObjectId(call_id)})
+
+        if not call:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video call not found"
+            )
+
+        channel_name = call.get("channel_name")
+        if not channel_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Channel name not found for this call"
+            )
+
+        print(f"Found channel name: {channel_name} for call: {call_id}")
+
+        # For now, return a temporary token placeholder
+        # In production, you would integrate with Agora token server
+        token = f"temp_token_{secrets.token_urlsafe(32)}"
+
+        return {
+            "token": token,
+            "channel": channel_name,
+            "uid": str(current_user.user_id),
+            "appId": "your_agora_app_id"  # This should come from environment
+        }
+    except Exception as e:
+        print(f"Error generating token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate token: {str(e)}"
+        )
 
 
 @router.post("/create-call", response_model=VideoCallResponse)
