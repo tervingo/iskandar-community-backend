@@ -49,9 +49,10 @@ async def generate_agora_token(
 
         print(f"Found channel name: {channel_name} for call: {call_id}")
 
-        # For now, return a temporary token placeholder
+        # For testing mode, return null token (Agora allows this for testing)
         # In production, you would integrate with Agora token server
-        token = f"temp_token_{secrets.token_urlsafe(32)}"
+        # For now, use null token which allows testing without valid Agora setup
+        token = None  # null token allows testing mode
 
         return {
             "token": token,
