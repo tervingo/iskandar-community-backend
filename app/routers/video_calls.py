@@ -26,7 +26,7 @@ async def generate_token_options():
     """Handle OPTIONS request for CORS preflight"""
     return {"message": "OK"}
 
-@router.post("/generate-token", response_model=Dict[str, str])
+@router.post("/generate-token", response_model=Dict[str, Any])
 async def generate_agora_token(
     call_id: str,
     current_user: TokenData = Depends(get_current_active_user)
