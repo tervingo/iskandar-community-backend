@@ -230,6 +230,86 @@ async def video_call_signal(sid, data):
         'user_name': user_name
     }, room=f"video_call_{call_id}", skip_sid=sid)
 
+# WebRTC signaling events
+@sio.event
+async def join_webrtc_call(sid, data):
+    """Handle user joining WebRTC call"""
+    call_id = data.get('callId')
+    user_id = data.get('userId')
+    username = data.get('username')
+
+    print(f"User {username} joining WebRTC call {call_id}")
+
+    # Join the socket room for this call
+    await sio.enter_room(sid, f"webrtc_call_{call_id}")
+
+    # Notify others in the room
+    await sio.emit('webrtc_user_joined', {
+        'userId': user_id,
+        'username': username
+    }, room=f"webrtc_call_{call_id}", skip_sid=sid)
+
+@sio.event
+async def leave_webrtc_call(sid, data):
+    """Handle user leaving WebRTC call"""
+    call_id = data.get('callId')
+    user_id = data.get('userId')
+
+    print(f"User {user_id} leaving WebRTC call {call_id}")
+
+    # Leave the socket room for this call
+    await sio.leave_room(sid, f"webrtc_call_{call_id}")
+
+    # Notify others in the room
+    await sio.emit('webrtc_user_left', {
+        'userId': user_id
+    }, room=f"webrtc_call_{call_id}")
+
+@sio.event
+async def webrtc_offer(sid, data):
+    """Handle WebRTC offer"""
+    call_id = data.get('callId')
+    offer = data.get('offer')
+    user_id = data.get('userId')
+
+    print(f"Received WebRTC offer from {user_id} for call {call_id}")
+
+    # Forward offer to others in the room
+    await sio.emit('webrtc_offer', {
+        'offer': offer,
+        'userId': user_id
+    }, room=f"webrtc_call_{call_id}", skip_sid=sid)
+
+@sio.event
+async def webrtc_answer(sid, data):
+    """Handle WebRTC answer"""
+    call_id = data.get('callId')
+    answer = data.get('answer')
+    user_id = data.get('userId')
+
+    print(f"Received WebRTC answer from {user_id} for call {call_id}")
+
+    # Forward answer to others in the room
+    await sio.emit('webrtc_answer', {
+        'answer': answer,
+        'userId': user_id
+    }, room=f"webrtc_call_{call_id}", skip_sid=sid)
+
+@sio.event
+async def webrtc_ice_candidate(sid, data):
+    """Handle WebRTC ICE candidate"""
+    call_id = data.get('callId')
+    candidate = data.get('candidate')
+    user_id = data.get('userId')
+
+    print(f"Received ICE candidate from {user_id} for call {call_id}")
+
+    # Forward ICE candidate to others in the room
+    await sio.emit('webrtc_ice_candidate', {
+        'candidate': candidate,
+        'userId': user_id
+    }, room=f"webrtc_call_{call_id}", skip_sid=sid)
+
 async def check_and_send_chat_notification(message_data):
     """Check if we should send chat activity notification to admins"""
     global last_chat_notification
