@@ -7,11 +7,15 @@ from app.models.user_activity_log import (
     ActivityLogFilters,
     ActivityEventType
 )
+from pydantic import BaseModel
 from app.database import get_collection
 from app.auth import get_current_admin_user
 from app.models.user import TokenData
 
 router = APIRouter()
+
+class BulkDeleteUsersRequest(BaseModel):
+    usernames: List[str]
 
 @router.get("/", response_model=List[UserActivityLogResponse])
 async def get_activity_logs(
@@ -214,4 +218,90 @@ async def cleanup_old_logs(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to cleanup activity logs: {str(e)}"
+        )
+
+@router.delete("/users/bulk")
+async def bulk_delete_user_activity_logs(
+    request: BulkDeleteUsersRequest,
+    current_admin: TokenData = Depends(get_current_admin_user)
+):
+    """
+    Delete all activity logs for specified users (Admin only)
+
+    This endpoint allows admins to completely remove all activity records
+    for selected users. Use with caution as this operation is irreversible.
+    """
+    try:
+        if not request.usernames:
+            raise HTTPException(
+                status_code=400,
+                detail="No usernames provided for deletion"
+            )
+
+        collection = get_collection("user_activity_logs")
+
+        # First, get a count of what we're about to delete for each user
+        deletion_summary = {}
+        total_to_delete = 0
+
+        for username in request.usernames:
+            count = await collection.count_documents({"username": username})
+            deletion_summary[username] = count
+            total_to_delete += count
+
+        if total_to_delete == 0:
+            return {
+                "message": "No activity logs found for the specified users",
+                "usernames": request.usernames,
+                "deleted_count": 0,
+                "deletion_summary": deletion_summary
+            }
+
+        # Perform the bulk deletion
+        result = await collection.delete_many({"username": {"$in": request.usernames}})
+
+        # Log this admin action
+        from app.services.activity_logger import log_activity, ActivityEventType
+        await log_activity(
+            username=current_admin.name,
+            event_type=ActivityEventType.ADMIN_ACTION,
+            success=True,
+            additional_info={
+                "action": "bulk_delete_user_activity_logs",
+                "target_users": request.usernames,
+                "deleted_count": result.deleted_count,
+                "admin_user": current_admin.name
+            }
+        )
+
+        return {
+            "message": f"Successfully deleted activity logs for {len(request.usernames)} users",
+            "usernames": request.usernames,
+            "deleted_count": result.deleted_count,
+            "deletion_summary": deletion_summary,
+            "performed_by": current_admin.name,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        # Log the failed attempt
+        try:
+            from app.services.activity_logger import log_activity, ActivityEventType
+            await log_activity(
+                username=current_admin.name,
+                event_type=ActivityEventType.ADMIN_ACTION,
+                success=False,
+                additional_info={
+                    "action": "bulk_delete_user_activity_logs",
+                    "target_users": request.usernames,
+                    "error": str(e),
+                    "admin_user": current_admin.name
+                }
+            )
+        except:
+            pass  # Don't fail if logging fails
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete user activity logs: {str(e)}"
         )

@@ -10,6 +10,7 @@ class ActivityEventType(str, Enum):
     LOGOUT = "logout"
     PASSWORD_CHANGE = "password_change"
     POST_VIEW = "post_view"
+    ADMIN_ACTION = "admin_action"
     # Futuros eventos que se pueden añadir:
     # ACCOUNT_CREATED = "account_created"
     # ACCOUNT_UPDATED = "account_updated"
