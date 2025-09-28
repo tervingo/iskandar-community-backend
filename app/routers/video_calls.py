@@ -21,6 +21,11 @@ async def video_calls_health():
     return {"status": "ok", "message": "Video calls router is working"}
 
 
+@router.options("/generate-token")
+async def generate_token_options():
+    """Handle OPTIONS request for CORS preflight"""
+    return {"message": "OK"}
+
 @router.post("/generate-token", response_model=Dict[str, str])
 async def generate_agora_token(
     call_id: str,
