@@ -261,8 +261,8 @@ async def bulk_delete_user_activity_logs(
         result = await collection.delete_many({"username": {"$in": request.usernames}})
 
         # Log this admin action
-        from app.services.activity_logger import log_activity, ActivityEventType
-        await log_activity(
+        from app.services.activity_logger import ActivityLogger
+        await ActivityLogger.log_activity(
             username=current_admin.name,
             event_type=ActivityEventType.ADMIN_ACTION,
             success=True,
@@ -286,8 +286,8 @@ async def bulk_delete_user_activity_logs(
     except Exception as e:
         # Log the failed attempt
         try:
-            from app.services.activity_logger import log_activity, ActivityEventType
-            await log_activity(
+            from app.services.activity_logger import ActivityLogger
+            await ActivityLogger.log_activity(
                 username=current_admin.name,
                 event_type=ActivityEventType.ADMIN_ACTION,
                 success=False,
