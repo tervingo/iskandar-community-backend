@@ -310,6 +310,21 @@ async def webrtc_ice_candidate(sid, data):
         'userId': user_id
     }, room=f"webrtc_call_{call_id}", skip_sid=sid)
 
+@sio.event
+async def webrtc_screen_share_status(sid, data):
+    """Handle WebRTC screen share status updates"""
+    call_id = data.get('callId')
+    user_id = data.get('userId')
+    is_screen_sharing = data.get('isScreenSharing')
+
+    print(f"Screen share status update: {user_id} - sharing: {is_screen_sharing} for call {call_id}")
+
+    # Forward screen share status to others in the room
+    await sio.emit('webrtc_screen_share_status', {
+        'userId': user_id,
+        'isScreenSharing': is_screen_sharing
+    }, room=f"webrtc_call_{call_id}", skip_sid=sid)
+
 async def check_and_send_chat_notification(message_data):
     """Check if we should send chat activity notification to admins"""
     global last_chat_notification

@@ -24,6 +24,13 @@ async def populate_category_name(post):
         post["category_name"] = None
     return post
 
+async def populate_comments_count(post):
+    """Helper function to populate comments count"""
+    comments_collection = get_collection("comments")
+    comments_count = await comments_collection.count_documents({"post_id": post["id"]})
+    post["comments_count"] = comments_count
+    return post
+
 @router.get("/", response_model=List[PostResponse])
 async def get_all_posts(category_id: str = None):
     collection = get_collection("posts")
@@ -42,10 +49,13 @@ async def get_all_posts(category_id: str = None):
         # Convert ObjectId to string and map _id to id
         post["id"] = str(post["_id"])
         post["_id"] = str(post["_id"])
-        
+
         # Populate category name
         post = await populate_category_name(post)
-        
+
+        # Populate comments count
+        post = await populate_comments_count(post)
+
         posts.append(PostResponse(**post))
     return posts
 

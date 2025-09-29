@@ -57,7 +57,7 @@ class PostPinPriority(BaseModel):
 
 class PostResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    
+
     id: str
     title: str
     content: str
@@ -69,3 +69,4 @@ class PostResponse(BaseModel):
     pin_priority: int = Field(default=0, description="Pin priority: 0=Normal, 1=Low, 2=Medium, 3=High")
     created_at: datetime
     updated_at: datetime
+    comments_count: int = Field(default=0, description="Number of comments on this post")
