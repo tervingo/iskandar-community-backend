@@ -27,7 +27,8 @@ async def populate_category_name(post):
 async def populate_comments_count(post):
     """Helper function to populate comments count"""
     comments_collection = get_collection("comments")
-    comments_count = await comments_collection.count_documents({"post_id": post["id"]})
+    # Convert post id string to ObjectId for matching in comments collection
+    comments_count = await comments_collection.count_documents({"post_id": ObjectId(post["id"])})
     post["comments_count"] = comments_count
     return post
 
@@ -93,10 +94,13 @@ async def get_all_posts_including_drafts(
         # Convert ObjectId to string and map _id to id
         post["id"] = str(post["_id"])
         post["_id"] = str(post["_id"])
-        
+
         # Populate category name
         post = await populate_category_name(post)
-        
+
+        # Populate comments count
+        post = await populate_comments_count(post)
+
         posts.append(PostResponse(**post))
     return posts
 
@@ -126,6 +130,9 @@ async def get_post(
     
     # Populate category name
     post = await populate_category_name(post)
+
+    # Populate comments count
+    post = await populate_comments_count(post)
 
     # Log post view event if post is published
     if post.get("is_published", False):
@@ -179,7 +186,10 @@ async def create_post(
     
     # Populate category name
     created_post = await populate_category_name(created_post)
-    
+
+    # Populate comments count
+    created_post = await populate_comments_count(created_post)
+
     # Send email notification if post is published
     if created_post.get("is_published", False):
         background_tasks.add_task(email_service.send_new_post_notification, created_post)
@@ -233,7 +243,10 @@ async def update_post(post_id: str, post_data: PostUpdate):
     
     # Populate category name
     updated_post = await populate_category_name(updated_post)
-    
+
+    # Populate comments count
+    updated_post = await populate_comments_count(updated_post)
+
     return PostResponse(**updated_post)
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -288,10 +301,13 @@ async def get_my_drafts(current_user: TokenData = Depends(get_current_active_use
         # Convert ObjectId to string and map _id to id
         post["id"] = str(post["_id"])
         post["_id"] = str(post["_id"])
-        
+
         # Populate category name
         post = await populate_category_name(post)
-        
+
+        # Populate comments count
+        post = await populate_comments_count(post)
+
         posts.append(PostResponse(**post))
     return posts
 
@@ -344,7 +360,10 @@ async def publish_post(
     
     # Populate category name
     updated_post = await populate_category_name(updated_post)
-    
+
+    # Populate comments count
+    updated_post = await populate_comments_count(updated_post)
+
     # Send email notification whenever a post is published (regardless of previous state)
     was_published = post.get("is_published", False)
     is_now_published = updated_post.get("is_published", False)
@@ -397,6 +416,9 @@ async def update_post_pin_priority(
 
     # Populate category name
     updated_post = await populate_category_name(updated_post)
+
+    # Populate comments count
+    updated_post = await populate_comments_count(updated_post)
 
     return PostResponse(**updated_post)
 
