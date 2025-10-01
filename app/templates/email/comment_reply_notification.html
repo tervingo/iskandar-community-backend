@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}💬 Nueva respuesta a tu comentario - {{ site_name }}{% endblock %}
+
+{% block header_title %}💬 Nueva respuesta a tu comentario{% endblock %}
+
+{% block content %}
+    <h2>¡Hola {{ parent_author_name }}!</h2>
+
+    <p><strong>{{ reply_author_name }}</strong> ha respondido a tu comentario en el post <strong>"{{ post_title }}"</strong>.</p>
+
+    <div class="post-preview">
+        <div class="badge">Tu comentario original</div>
+        <p style="margin: 0; font-style: italic; color: #555;">
+            "{{ parent_comment_content }}"
+        </p>
+    </div>
+
+    <div class="post-preview" style="border-left-color: #27ae60;">
+        <div class="badge" style="background-color: #27ae60;">💬 Nueva respuesta de {{ reply_author_name }}</div>
+        <p style="margin: 0; color: #333;">
+            "{{ reply_content }}"
+        </p>
+    </div>
+
+    <p>Puedes ver la respuesta completa y continuar la conversación haciendo clic en el siguiente botón:</p>
+
+    <a href="{{ post_url }}" class="button">🔗 Ver respuesta y continuar conversación</a>
+
+    <div class="meta">
+        <p><strong>Post:</strong> {{ post_title }}</p>
+        <p><strong>Autor de la respuesta:</strong> {{ reply_author_name }}</p>
+        <p><strong>Fecha:</strong> {{ "now"|strftime("%d de %B de %Y a las %H:%M") }}</p>
+    </div>
+
+    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+    <p style="font-size: 14px; color: #7f8c8d;">
+        <strong>💡 Tip:</strong> Puedes responder directamente desde la página web para mantener la conversación activa.
+        ¡Tu participación hace que nuestra comunidad sea más rica y colaborativa!
+    </p>
+{% endblock %}
+
+{% block footer %}
+    <p>Has recibido este email porque alguien respondió a tu comentario en {{ site_name }}.</p>
+    <p>
+        <a href="{{ unsubscribe_url }}">Gestionar preferencias de email</a> |
+        <a href="{{ post_url }}">Ver conversación completa</a>
+    </p>
+    <p>&copy; {{ "now"|strftime("%Y") }} {{ site_name }}. Todos los derechos reservados.</p>
+{% endblock %}
