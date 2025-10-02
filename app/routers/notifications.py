@@ -207,6 +207,7 @@ async def get_email_preferences(
             "new_posts": preferences.get("new_posts", default_prefs.new_posts),
             "admin_notifications": preferences.get("admin_notifications", default_prefs.admin_notifications),
             "comment_replies": preferences.get("comment_replies", default_prefs.comment_replies),
+            "new_comments": preferences.get("new_comments", default_prefs.new_comments),
             "weekly_digest": preferences.get("weekly_digest", default_prefs.weekly_digest)
         }
         
@@ -414,6 +415,7 @@ async def get_all_user_preferences(
                 "new_posts": True,
                 "admin_notifications": True,
                 "comment_replies": True,
+                "new_comments": True,
                 "weekly_digest": False
             }
             

@@ -18,4 +18,5 @@ class EmailPreferencesUpdate(BaseModel):
     new_posts: Optional[bool] = Field(None, description="Receive notifications for new posts")
     admin_notifications: Optional[bool] = Field(None, description="Receive admin broadcast messages")
     comment_replies: Optional[bool] = Field(None, description="Receive notifications for comment replies")
+    new_comments: Optional[bool] = Field(None, description="Receive notifications for any new comment on any post")
     weekly_digest: Optional[bool] = Field(None, description="Receive weekly activity digest")
