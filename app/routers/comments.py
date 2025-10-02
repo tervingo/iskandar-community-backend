@@ -182,26 +182,53 @@ async def delete_comment(comment_id: str, current_user: TokenData = Depends(get_
 async def send_comment_reply_notification(parent_comment: Dict[str, Any], reply_comment: Dict[str, Any], post: Dict[str, Any]):
     """Send email notification when someone replies to a comment"""
     try:
+        logger.info(f"Starting comment reply notification process")
+        logger.info(f"Parent comment keys: {list(parent_comment.keys()) if parent_comment else 'None'}")
+        logger.info(f"Reply comment keys: {list(reply_comment.keys()) if reply_comment else 'None'}")
+        logger.info(f"Post keys: {list(post.keys()) if post else 'None'}")
+
         # Get the parent comment author's email
         parent_author_email = parent_comment.get("author_email")
         parent_author_name = parent_comment.get("author_name", "Usuario")
 
+        # If no email in comment, try to look it up from users collection
         if not parent_author_email:
-            logger.info(f"No email found for parent comment author: {parent_author_name}")
-            return
+            logger.info(f"No email in comment for author: {parent_author_name}, attempting lookup...")
+            users_collection = get_collection("users")
+            user = await users_collection.find_one({"name": parent_author_name})
+
+            if user and user.get("email"):
+                parent_author_email = user["email"]
+                logger.info(f"Found email for {parent_author_name}: {parent_author_email}")
+
+                # Update the comment with the email for future use
+                comments_collection = get_collection("comments")
+                await comments_collection.update_one(
+                    {"_id": parent_comment["_id"]},
+                    {"$set": {"author_email": parent_author_email}}
+                )
+                logger.info(f"Updated comment {parent_comment['_id']} with author email")
+            else:
+                logger.info(f"No user found for parent comment author: {parent_author_name}")
+                return
 
         # Check if the parent author has email notifications enabled for comment replies
-        users_collection = get_collection("users")
-        parent_user = await users_collection.find_one({"email": parent_author_email})
+        try:
+            users_collection = get_collection("users")
+            parent_user = await users_collection.find_one({"email": parent_author_email})
+            logger.info(f"Found parent user: {parent_user is not None}")
 
-        if not parent_user:
-            logger.info(f"Parent comment author not found in users collection: {parent_author_email}")
-            return
+            if not parent_user:
+                logger.info(f"Parent comment author not found in users collection: {parent_author_email}")
+                return
 
-        # Check email preferences (default to True if not set)
-        email_prefs = parent_user.get("email_preferences", {})
-        if not email_prefs.get("comment_replies", True):
-            logger.info(f"User {parent_author_email} has disabled comment reply notifications")
+            # Check email preferences (default to True if not set)
+            email_prefs = parent_user.get("email_preferences", {})
+            if not email_prefs.get("comment_replies", True):
+                logger.info(f"User {parent_author_email} has disabled comment reply notifications")
+                return
+        except Exception as e:
+            logger.error(f"Error checking user preferences: {e}")
             return
 
         # Don't send notification if user is replying to their own comment
@@ -213,7 +240,11 @@ async def send_comment_reply_notification(parent_comment: Dict[str, Any], reply_
         # Prepare email context
         reply_author_name = reply_comment.get("author_name", "Un usuario")
         post_title = post.get("title", "Sin título")
-        post_url = f"{os.getenv('FRONTEND_URL', 'https://yskandar.com')}/blog/{post['_id']}#comments"
+        post_id = post.get("_id") if post else None
+        if not post_id:
+            logger.error("Post ID not found, cannot generate post URL")
+            return
+        post_url = f"{os.getenv('FRONTEND_URL', 'https://yskandar.com')}/blog/{post_id}#comments"
 
         context = {
             "parent_author_name": parent_author_name,
@@ -227,15 +258,26 @@ async def send_comment_reply_notification(parent_comment: Dict[str, Any], reply_
         }
 
         # Render email template
-        html_body = email_service._render_template("comment_reply_notification.html", context)
+        try:
+            logger.info("Rendering email template...")
+            html_body = email_service._render_template("comment_reply_notification.html", context)
+            logger.info("Email template rendered successfully")
+        except Exception as e:
+            logger.error(f"Error rendering email template: {e}")
+            return
 
         # Send email
-        subject = f"💬 {reply_author_name} respondió a tu comentario en '{post_title}'"
-        success = await email_service.send_email(
-            recipients=[parent_author_email],
-            subject=subject,
-            html_body=html_body
-        )
+        try:
+            subject = f"💬 {reply_author_name} respondió a tu comentario en '{post_title}'"
+            logger.info(f"Attempting to send email with subject: {subject}")
+            success = await email_service.send_email(
+                recipients=[parent_author_email],
+                subject=subject,
+                html_body=html_body
+            )
+        except Exception as e:
+            logger.error(f"Error sending email: {e}")
+            return
 
         if success:
             logger.info(f"Comment reply notification sent successfully to {parent_author_email}")
