@@ -102,14 +102,22 @@ async def create_comment(post_id: str, comment_data: CommentCreate, background_t
     if created_comment.get("parent_id"):
         created_comment["parent_id"] = str(created_comment["parent_id"])
 
-    # Send email notification if this is a reply to another comment
+    # Send email notifications
     if parent_comment and comment_data.parent_id:
+        # Send reply notification to parent comment author
         background_tasks.add_task(
             send_comment_reply_notification,
             parent_comment,
             created_comment,
             post
         )
+
+    # Send new comment notification to all users who want to be notified
+    background_tasks.add_task(
+        send_new_comment_notification,
+        created_comment,
+        post
+    )
 
     return CommentResponse(**created_comment)
 
@@ -286,3 +294,78 @@ async def send_comment_reply_notification(parent_comment: Dict[str, Any], reply_
 
     except Exception as e:
         logger.error(f"Error sending comment reply notification: {e}")
+
+async def send_new_comment_notification(comment: Dict[str, Any], post: Dict[str, Any]):
+    """Send email notification to all users who want to be notified of new comments"""
+    try:
+        logger.info(f"Starting new comment notification process")
+        logger.info(f"Comment keys: {list(comment.keys()) if comment else 'None'}")
+        logger.info(f"Post keys: {list(post.keys()) if post else 'None'}")
+
+        # Get all users who have new_comments notifications enabled
+        users_collection = get_collection("users")
+        users_cursor = users_collection.find({
+            "email_preferences.new_comments": True,
+            "is_active": True
+        })
+
+        comment_author_email = comment.get("author_email")
+        comment_author_name = comment.get("author_name", "Un usuario")
+        post_title = post.get("title", "Sin título")
+        post_id = post.get("_id") if post else None
+
+        if not post_id:
+            logger.error("Post ID not found, cannot generate post URL")
+            return
+
+        post_url = f"{os.getenv('FRONTEND_URL', 'https://yskandar.com')}/blog/{post_id}#comments"
+        preferences_url = f"{os.getenv('FRONTEND_URL', 'https://yskandar.com')}/profile"
+        base_url = os.getenv('FRONTEND_URL', 'https://yskandar.com')
+
+        recipients_count = 0
+        async for user in users_cursor:
+            user_email = user.get("email")
+
+            # Skip if no email or if this is the comment author (don't notify themselves)
+            if not user_email or user_email == comment_author_email:
+                continue
+
+            # Prepare email context for this user
+            context = {
+                "comment_author_name": comment_author_name,
+                "comment_content": comment.get("content", "")[:300] + "..." if len(comment.get("content", "")) > 300 else comment.get("content", ""),
+                "comment_date": comment.get("created_at", datetime.utcnow()).strftime("%d de %B de %Y"),
+                "post_title": post_title,
+                "post_excerpt": post.get("excerpt", "")[:150] + "..." if post.get("excerpt") and len(post.get("excerpt", "")) > 150 else post.get("excerpt", ""),
+                "post_url": post_url,
+                "preferences_url": preferences_url,
+                "base_url": base_url,
+                "recipient_name": user.get("name", "Usuario")
+            }
+
+            try:
+                # Render email template
+                html_body = email_service._render_template("new_comment_notification.html", context)
+
+                # Send email
+                subject = f"💬 Nuevo comentario de {comment_author_name} en '{post_title}'"
+                success = await email_service.send_email(
+                    recipients=[user_email],
+                    subject=subject,
+                    html_body=html_body
+                )
+
+                if success:
+                    recipients_count += 1
+                    logger.info(f"New comment notification sent to {user_email}")
+                else:
+                    logger.error(f"Failed to send new comment notification to {user_email}")
+
+            except Exception as e:
+                logger.error(f"Error sending new comment notification to {user_email}: {e}")
+                continue
+
+        logger.info(f"New comment notifications sent to {recipients_count} users")
+
+    except Exception as e:
+        logger.error(f"Error in new comment notification process: {e}")

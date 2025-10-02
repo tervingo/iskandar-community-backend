@@ -13,6 +13,7 @@ class EmailPreferences(BaseModel):
     new_posts: bool = Field(default=True, description="Receive notifications for new posts")
     admin_notifications: bool = Field(default=True, description="Receive admin broadcast messages")
     comment_replies: bool = Field(default=True, description="Receive notifications for comment replies")
+    new_comments: bool = Field(default=True, description="Receive notifications for any new comment on any post")
     weekly_digest: bool = Field(default=False, description="Receive weekly activity digest")
 
 class TelegramPreferences(BaseModel):

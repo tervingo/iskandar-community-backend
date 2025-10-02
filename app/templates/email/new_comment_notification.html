@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuevo comentario en {{ post_title }}</title>
+    <style>
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background-color: #f8f9fa; }
+        .container { max-width: 600px; margin: 0 auto; background-color: white; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 600; }
+        .header p { margin: 10px 0 0; opacity: 0.9; font-size: 16px; }
+        .content { padding: 40px 30px; }
+        .post-info { background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 30px; border-left: 4px solid #667eea; }
+        .post-title { font-size: 20px; font-weight: 600; color: #2c3e50; margin: 0 0 10px; }
+        .post-excerpt { color: #6c757d; margin: 0; line-height: 1.5; }
+        .comment-preview { background-color: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 30px; }
+        .comment-header { margin-bottom: 15px; }
+        .comment-author { font-weight: 600; color: #495057; font-size: 16px; }
+        .comment-date { color: #6c757d; font-size: 14px; margin-left: 10px; }
+        .comment-content { color: #212529; line-height: 1.6; margin: 0; }
+        .badge { display: inline-block; background-color: #3498db; color: white; padding: 6px 12px; border-radius: 20px; font-size: 14px; font-weight: 500; margin-bottom: 15px; }
+        .action-button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 500; margin: 20px 0; transition: all 0.2s ease; }
+        .action-button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); color: white; text-decoration: none; }
+        .footer { background-color: #f8f9fa; padding: 30px; text-align: center; border-top: 1px solid #e9ecef; color: #6c757d; font-size: 14px; line-height: 1.5; }
+        .footer a { color: #667eea; text-decoration: none; }
+        .unsubscribe { margin-top: 20px; font-size: 12px; color: #9ca3af; }
+        .unsubscribe a { color: #9ca3af; }
+        @media (max-width: 600px) {
+            .header, .content, .footer { padding: 20px !important; }
+            .header h1 { font-size: 24px !important; }
+            .action-button { padding: 12px 24px !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💬 Nuevo comentario</h1>
+            <p>Se ha publicado un nuevo comentario en el blog</p>
+        </div>
+
+        <div class="content">
+            <div class="post-info">
+                <div class="post-title">{{ post_title }}</div>
+                {% if post_excerpt %}
+                <div class="post-excerpt">{{ post_excerpt }}</div>
+                {% endif %}
+            </div>
+
+            <div class="comment-preview">
+                <div class="badge">💬 Nuevo comentario de {{ comment_author_name }}</div>
+                <div class="comment-header">
+                    <span class="comment-author">{{ comment_author_name }}</span>
+                    <span class="comment-date">{{ comment_date }}</span>
+                </div>
+                <div class="comment-content">
+                    "{{ comment_content }}"
+                </div>
+            </div>
+
+            <div style="text-align: center;">
+                <a href="{{ post_url }}#comments" class="action-button">
+                    Ver comentario completo
+                </a>
+            </div>
+
+            <div style="margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 8px; color: #6c757d; font-size: 14px;">
+                <strong>💡 Tip:</strong> Puedes responder a este comentario directamente desde el blog. Si quieres cambiar tus preferencias de notificaciones,
+                <a href="{{ preferences_url }}" style="color: #667eea;">haz clic aquí</a>.
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>
+                Este email fue enviado desde <strong>Iskandar Community</strong><br>
+                <a href="{{ base_url }}">Visitar el blog</a> |
+                <a href="{{ preferences_url }}">Preferencias de email</a>
+            </p>
+
+            <div class="unsubscribe">
+                <p>
+                    Si ya no quieres recibir notificaciones de nuevos comentarios,
+                    <a href="{{ preferences_url }}">puedes desactivarlas aquí</a>.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
