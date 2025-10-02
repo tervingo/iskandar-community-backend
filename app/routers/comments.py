@@ -304,6 +304,14 @@ async def send_new_comment_notification(comment: Dict[str, Any], post: Dict[str,
 
         # Get all users who have new_comments notifications enabled
         users_collection = get_collection("users")
+
+        # First, let's see how many users have this preference enabled
+        enabled_count = await users_collection.count_documents({
+            "email_preferences.new_comments": True,
+            "is_active": True
+        })
+        logger.info(f"Found {enabled_count} users with new_comments notifications enabled")
+
         users_cursor = users_collection.find({
             "email_preferences.new_comments": True,
             "is_active": True

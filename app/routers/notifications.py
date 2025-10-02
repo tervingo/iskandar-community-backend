@@ -107,7 +107,7 @@ async def update_email_preferences(
         
         # Update only provided preferences
         current_prefs = user.get("email_preferences", {})
-        
+
         update_data = {}
         if preferences.new_posts is not None:
             update_data["email_preferences.new_posts"] = preferences.new_posts
@@ -115,6 +115,8 @@ async def update_email_preferences(
             update_data["email_preferences.admin_notifications"] = preferences.admin_notifications
         if preferences.comment_replies is not None:
             update_data["email_preferences.comment_replies"] = preferences.comment_replies
+        if preferences.new_comments is not None:
+            update_data["email_preferences.new_comments"] = preferences.new_comments
         if preferences.weekly_digest is not None:
             update_data["email_preferences.weekly_digest"] = preferences.weekly_digest
         
@@ -295,6 +297,8 @@ async def update_user_email_preferences_admin(
             update_data["email_preferences.admin_notifications"] = preferences.admin_notifications
         if preferences.comment_replies is not None:
             update_data["email_preferences.comment_replies"] = preferences.comment_replies
+        if preferences.new_comments is not None:
+            update_data["email_preferences.new_comments"] = preferences.new_comments
         if preferences.weekly_digest is not None:
             update_data["email_preferences.weekly_digest"] = preferences.weekly_digest
         
@@ -364,7 +368,7 @@ async def bulk_update_email_preferences(
         # Build update data
         update_data = {}
         for key, value in preferences.items():
-            if key in ["new_posts", "admin_notifications", "comment_replies", "weekly_digest"]:
+            if key in ["new_posts", "admin_notifications", "comment_replies", "new_comments", "weekly_digest"]:
                 update_data[f"email_preferences.{key}"] = value
         
         if not update_data:
