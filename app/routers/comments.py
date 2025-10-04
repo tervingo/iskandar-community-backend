@@ -92,8 +92,14 @@ async def create_comment(post_id: str, comment_data: CommentCreate, background_t
     if comment_dict.get("parent_id"):
         comment_dict["parent_id"] = ObjectId(comment_dict["parent_id"])
 
-    result = await collection.insert_one(comment_dict)
-    created_comment = await collection.find_one({"_id": result.inserted_id})
+    try:
+        result = await collection.insert_one(comment_dict)
+        created_comment = await collection.find_one({"_id": result.inserted_id})
+        logger.info(f"Comment inserted successfully with ID: {result.inserted_id}")
+    except Exception as e:
+        logger.error(f"Error inserting comment: {e}")
+        logger.error(f"Comment data: {comment_dict}")
+        raise HTTPException(status_code=500, detail=f"Error creating comment: {str(e)}")
 
     # Convert ObjectId to string and map _id to id
     created_comment["id"] = str(created_comment["_id"])
@@ -103,21 +109,27 @@ async def create_comment(post_id: str, comment_data: CommentCreate, background_t
         created_comment["parent_id"] = str(created_comment["parent_id"])
 
     # Send email notifications
-    if parent_comment and comment_data.parent_id:
-        # Send reply notification to parent comment author
+    try:
+        if parent_comment and comment_data.parent_id:
+            # Send reply notification to parent comment author
+            background_tasks.add_task(
+                send_comment_reply_notification,
+                parent_comment,
+                created_comment,
+                post
+            )
+            logger.info("Reply notification task added")
+
+        # Send new comment notification to all users who want to be notified
         background_tasks.add_task(
-            send_comment_reply_notification,
-            parent_comment,
+            send_new_comment_notification,
             created_comment,
             post
         )
-
-    # Send new comment notification to all users who want to be notified
-    background_tasks.add_task(
-        send_new_comment_notification,
-        created_comment,
-        post
-    )
+        logger.info("New comment notification task added")
+    except Exception as e:
+        logger.error(f"Error adding notification tasks: {e}")
+        # Don't fail the comment creation because of notification errors
 
     return CommentResponse(**created_comment)
 
@@ -338,18 +350,29 @@ async def send_new_comment_notification(comment: Dict[str, Any], post: Dict[str,
             if not user_email or user_email == comment_author_email:
                 continue
 
-            # Prepare email context for this user
-            context = {
-                "comment_author_name": comment_author_name,
-                "comment_content": comment.get("content", "")[:300] + "..." if len(comment.get("content", "")) > 300 else comment.get("content", ""),
-                "comment_date": comment.get("created_at", datetime.utcnow()).strftime("%d de %B de %Y"),
-                "post_title": post_title,
-                "post_excerpt": post.get("excerpt", "")[:150] + "..." if post.get("excerpt") and len(post.get("excerpt", "")) > 150 else post.get("excerpt", ""),
-                "post_url": post_url,
-                "preferences_url": preferences_url,
-                "base_url": base_url,
-                "recipient_name": user.get("name", "Usuario")
-            }
+            # Prepare email context for this user - sanitize content
+            try:
+                comment_content = comment.get("content", "")
+                # Clean and truncate content for email
+                safe_content = comment_content.replace('"', "'").replace('\n', ' ')[:300]
+                if len(comment_content) > 300:
+                    safe_content += "..."
+
+                context = {
+                    "comment_author_name": comment_author_name,
+                    "comment_content": safe_content,
+                    "comment_date": comment.get("created_at", datetime.utcnow()).strftime("%d de %B de %Y"),
+                    "post_title": post_title,
+                    "post_excerpt": post.get("excerpt", "")[:150] + "..." if post.get("excerpt") and len(post.get("excerpt", "")) > 150 else post.get("excerpt", ""),
+                    "post_url": post_url,
+                    "preferences_url": preferences_url,
+                    "base_url": base_url,
+                    "recipient_name": user.get("name", "Usuario")
+                }
+                logger.info(f"Prepared email context for {user_email}")
+            except Exception as e:
+                logger.error(f"Error preparing email context for {user_email}: {e}")
+                continue
 
             try:
                 # Render email template
