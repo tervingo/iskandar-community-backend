@@ -106,7 +106,9 @@ async def get_current_admin_user(current_user: TokenData = Depends(get_current_a
 async def authenticate_user(name: str, password: str) -> Optional[dict]:
     """Authenticate user credentials"""
     users_collection = get_collection("users")
-    user = await users_collection.find_one({"name": name})
+    # Trim whitespace from name to handle mobile input issues
+    clean_name = name.strip()
+    user = await users_collection.find_one({"name": clean_name})
     
     if not user:
         return None

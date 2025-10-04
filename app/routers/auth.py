@@ -23,11 +23,13 @@ router = APIRouter()
 async def login(user_credentials: UserLogin, request: Request):
     """Authenticate user and return JWT token"""
     try:
+        # Clean the username to handle whitespace issues from mobile inputs
+        clean_name = user_credentials.name.strip()
         user = await authenticate_user(user_credentials.name, user_credentials.password)
         if not user:
-            # Log failed login attempt
+            # Log failed login attempt with clean name
             await ActivityLogger.log_login(
-                username=user_credentials.name,
+                username=clean_name,
                 success=False,
                 request=request
             )
