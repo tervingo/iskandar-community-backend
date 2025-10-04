@@ -14,19 +14,19 @@ class CommentModel(BaseModel):
     id: PyObjectId = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     post_id: PyObjectId = Field(...)
     author_name: str = Field(..., min_length=1, max_length=50)
-    content: str = Field(..., min_length=1, max_length=1000)
+    content: str = Field(..., min_length=1, max_length=5000)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     parent_id: Optional[PyObjectId] = Field(None)  # For reply functionality
     author_email: Optional[str] = Field(None)  # For email notifications
 
 class CommentCreate(BaseModel):
     author_name: str = Field(..., min_length=1, max_length=50)
-    content: str = Field(..., min_length=1, max_length=1000)
+    content: str = Field(..., min_length=1, max_length=5000)
     parent_id: Optional[str] = Field(None)  # ID of parent comment if this is a reply
     author_email: Optional[str] = Field(None)  # Email for notifications
 
 class CommentUpdate(BaseModel):
-    content: str = Field(..., min_length=1, max_length=1000)
+    content: str = Field(..., min_length=1, max_length=5000)
 
 class CommentResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
