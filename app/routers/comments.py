@@ -124,17 +124,15 @@ async def create_comment(post_id: str, comment_data: CommentCreate, background_t
                 logger.error(f"Error adding reply notification task: {e}")
 
         # Send new comment notification to all users who want to be notified
-        # Temporarily disabled for debugging
-        # try:
-        #     background_tasks.add_task(
-        #         send_new_comment_notification,
-        #         created_comment,
-        #         post
-        #     )
-        #     logger.info("New comment notification task added")
-        # except Exception as e:
-        #     logger.error(f"Error adding new comment notification task: {e}")
-        logger.info("New comment notifications temporarily disabled for debugging")
+        try:
+            background_tasks.add_task(
+                send_new_comment_notification,
+                created_comment,
+                post
+            )
+            logger.info("New comment notification task added")
+        except Exception as e:
+            logger.error(f"Error adding new comment notification task: {e}")
 
     except Exception as e:
         logger.error(f"Error in notification process: {e}")
