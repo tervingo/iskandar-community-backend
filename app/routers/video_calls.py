@@ -252,14 +252,67 @@ async def get_meeting_rooms(
     current_user: TokenData = Depends(get_current_active_user)
 ):
     """Get all active meeting rooms"""
+    print(f"=== GET MEETING ROOMS ENDPOINT CALLED ===")
+    print(f"Current user: {current_user.name} ({current_user.user_id})")
+
     collection = get_collection("video_calls")
+
+    print(f"Querying for meeting rooms with filters:")
+    print(f"  call_type: 'meeting'")
+    print(f"  status: ['waiting', 'active']")
 
     rooms = await collection.find({
         "call_type": "meeting",
         "status": {"$in": ["waiting", "active"]}
     }).sort("created_at", -1).to_list(length=50)
 
-    return [VideoCallResponse(**room) for room in rooms]
+    print(f"Found {len(rooms)} rooms in database")
+
+    if rooms:
+        for i, room in enumerate(rooms):
+            print(f"Room {i+1}:")
+            print(f"  _id: {room.get('_id')}")
+            print(f"  room_name: {room.get('room_name')}")
+            print(f"  call_type: {room.get('call_type')}")
+            print(f"  status: {room.get('status')}")
+            print(f"  creator_name: {room.get('creator_name')}")
+            print(f"  is_public: {room.get('is_public')}")
+    else:
+        print("No rooms found!")
+
+    try:
+        response_rooms = []
+        for room in rooms:
+            # Convert ObjectId to string for _id field and other ObjectId fields
+            room_data = dict(room)
+            room_data["_id"] = str(room_data["_id"])
+            room_data["id"] = str(room_data["_id"])  # Also set id field for the model
+            if room_data.get("creator_id"):
+                room_data["creator_id"] = str(room_data["creator_id"])
+
+            # Convert ObjectIds in invited_users and participants if they exist
+            if room_data.get("invited_users"):
+                room_data["invited_users"] = [str(uid) if hasattr(uid, '__str__') else uid for uid in room_data["invited_users"]]
+
+            # Ensure participants is a list (even if empty)
+            if not room_data.get("participants"):
+                room_data["participants"] = []
+
+            # Convert ObjectIds in participants
+            for participant in room_data.get("participants", []):
+                if participant.get("user_id"):
+                    participant["user_id"] = str(participant["user_id"])
+
+            print(f"Converting room to response: {room_data.get('room_name')}")
+            response_room = VideoCallResponse(**room_data)
+            response_rooms.append(response_room)
+            print(f"Successfully converted room: {response_room.room_name}")
+
+        print(f"Returning {len(response_rooms)} rooms")
+        return response_rooms
+    except Exception as e:
+        print(f"Error converting rooms to response: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing rooms: {str(e)}")
 
 
 @router.options("/create-meeting-room")
