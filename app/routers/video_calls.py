@@ -113,7 +113,7 @@ async def create_video_call(
 
         # Prepare response data with proper field types
         response_data = {
-            "_id": str(result.inserted_id),
+            "id": str(result.inserted_id),
             "channel_name": channel_name,
             "creator_id": str(current_user.user_id),
             "creator_name": current_user.name,
@@ -304,9 +304,21 @@ async def get_meeting_rooms(
                     participant["user_id"] = str(participant["user_id"])
 
             print(f"Converting room to response: {room_data.get('room_name')}")
+            print(f"  Room data keys: {list(room_data.keys())}")
+            print(f"  _id: {room_data.get('_id')}")
+            print(f"  id: {room_data.get('id')}")
+
             response_room = VideoCallResponse(**room_data)
             response_rooms.append(response_room)
             print(f"Successfully converted room: {response_room.room_name}")
+            print(f"  Response room id: {response_room.id}")
+            print(f"  Response room dict: {response_room.dict()}")
+
+            # Verify the ID is correctly set in the response
+            room_dict = response_room.dict()
+            if not room_dict.get('id'):
+                print(f"WARNING: ID field missing in response dict!")
+                print(f"Available fields: {list(room_dict.keys())}")
 
         print(f"Returning {len(response_rooms)} rooms")
         return response_rooms
@@ -359,7 +371,7 @@ async def create_meeting_room(
 
         # Prepare response data with proper field types
         response_data = {
-            "_id": str(result.inserted_id),
+            "id": str(result.inserted_id),
             "channel_name": channel_name,
             "creator_id": str(current_user.user_id),
             "creator_name": current_user.name,

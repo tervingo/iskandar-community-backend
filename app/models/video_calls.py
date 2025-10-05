@@ -28,7 +28,7 @@ class VideoCallCreate(BaseModel):
 
 
 class VideoCallModel(BaseModel):
-    id: Optional[str] = Field(alias="_id")
+    id: Optional[str] = None  # Remove alias to ensure it's always in JSON
     channel_name: str
     creator_id: str
     creator_name: str
@@ -47,6 +47,7 @@ class VideoCallModel(BaseModel):
 
     class Config:
         populate_by_name = True
+        validate_by_name = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
