@@ -73,6 +73,11 @@ async def generate_agora_token(
         )
 
 
+@router.options("/create-call")
+async def create_call_options():
+    """Handle OPTIONS request for CORS preflight"""
+    return {"message": "OK"}
+
 @router.post("/create-call", response_model=VideoCallResponse)
 async def create_video_call(
     call_data: VideoCallCreate,
@@ -150,6 +155,11 @@ async def get_my_calls(
     return [VideoCallResponse(**call) for call in calls]
 
 
+@router.options("/join-call/{call_id}")
+async def join_call_options(call_id: str):
+    """Handle OPTIONS request for CORS preflight"""
+    return {"message": "OK"}
+
 @router.post("/join-call/{call_id}")
 async def join_video_call(
     call_id: str,
@@ -194,6 +204,11 @@ async def join_video_call(
 
     return {"message": "Joined call successfully", "channel_name": call["channel_name"]}
 
+
+@router.options("/leave-call/{call_id}")
+async def leave_call_options(call_id: str):
+    """Handle OPTIONS request for CORS preflight"""
+    return {"message": "OK"}
 
 @router.post("/leave-call/{call_id}")
 async def leave_video_call(
@@ -247,6 +262,11 @@ async def get_meeting_rooms(
     return [VideoCallResponse(**room) for room in rooms]
 
 
+@router.options("/create-meeting-room")
+async def create_meeting_room_options():
+    """Handle OPTIONS request for CORS preflight"""
+    return {"message": "OK"}
+
 @router.post("/create-meeting-room", response_model=VideoCallResponse)
 async def create_meeting_room(
     room_data: MeetingRoomCreate,
@@ -254,8 +274,10 @@ async def create_meeting_room(
 ):
     """Create a new meeting room"""
     try:
+        print(f"=== CREATE MEETING ROOM ENDPOINT CALLED ===")
         print(f"Creating meeting room with data: {room_data}")
         print(f"Current user: {current_user.name} ({current_user.user_id})")
+        print(f"User email: {current_user.email}, role: {current_user.role}, active: {current_user.is_active}")
 
         collection = get_collection("video_calls")
 
