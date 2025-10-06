@@ -431,3 +431,79 @@ async def get_call_history(
         ))
 
     return history
+
+
+@router.options("/delete-meeting-room/{room_id}")
+async def delete_meeting_room_options(room_id: str):
+    """Handle OPTIONS request for CORS preflight"""
+    return {"message": "OK"}
+
+
+@router.delete("/delete-meeting-room/{room_id}")
+async def delete_meeting_room(
+    room_id: str,
+    current_user: TokenData = Depends(get_current_active_user)
+):
+    """Delete a meeting room (only by creator)"""
+    try:
+        print(f"=== DELETE MEETING ROOM ENDPOINT CALLED ===")
+        print(f"Room ID: {room_id}")
+        print(f"Requesting user: {current_user.name} ({current_user.user_id})")
+
+        collection = get_collection("video_calls")
+        room_object_id = ObjectId(room_id)
+
+        # First, find the room to verify ownership
+        room = await collection.find_one({"_id": room_object_id})
+
+        if not room:
+            print(f"Room {room_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Meeting room not found"
+            )
+
+        # Check if current user is the creator
+        creator_id = room.get("creator_id")
+        if str(creator_id) != current_user.user_id:
+            print(f"Access denied: {current_user.user_id} is not creator {creator_id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the room creator can delete this meeting room"
+            )
+
+        # Check if room has active participants
+        participants = room.get("participants", [])
+        if len(participants) > 0:
+            print(f"Room has {len(participants)} active participants, cannot delete")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete room with active participants. Please wait for all participants to leave."
+            )
+
+        # Delete the room
+        result = await collection.delete_one({"_id": room_object_id})
+
+        if result.deleted_count == 0:
+            print(f"Failed to delete room {room_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete meeting room"
+            )
+
+        print(f"Successfully deleted room {room_id} by {current_user.name}")
+
+        return {
+            "message": "Meeting room deleted successfully",
+            "room_id": room_id,
+            "room_name": room.get("room_name", "Unknown")
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error deleting meeting room: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete meeting room: {str(e)}"
+        )
