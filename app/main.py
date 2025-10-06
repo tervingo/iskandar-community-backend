@@ -75,6 +75,9 @@ socket_app = socketio.ASGIApp(sio, app)
 # Store online users
 online_users = {}
 
+# Store active video call participants: sid -> (call_id, user_id, username)
+active_video_calls = {}
+
 # Track last chat activity for admin notifications
 last_chat_notification = None
 
@@ -85,17 +88,62 @@ async def connect(sid, environ):
 @sio.event
 async def disconnect(sid):
     print(f"Client {sid} disconnected")
+
     # Remove user from online users if they were tracked
     user_to_remove = None
     for user_id, user_data in online_users.items():
         if user_data.get('socket_id') == sid:
             user_to_remove = user_id
             break
-    
+
     if user_to_remove:
         del online_users[user_to_remove]
         # Broadcast updated user list
         await sio.emit('users_online_update', list(online_users.values()))
+
+    # Handle video call cleanup for sudden disconnections
+    if sid in active_video_calls:
+        call_id, user_id, username = active_video_calls[sid]
+        print(f"Cleaning up video call for disconnected user {username} in call {call_id}")
+
+        # Remove from tracking
+        del active_video_calls[sid]
+
+        # Update database: remove participant
+        try:
+            from app.database import get_collection
+            from bson import ObjectId
+
+            collection = get_collection("video_calls")
+
+            # Remove participant
+            await collection.update_one(
+                {"_id": ObjectId(call_id)},
+                {"$pull": {"participants": {"user_id": ObjectId(user_id)}}}
+            )
+            print(f"Cleaned up DB: Removed participant {username} from call {call_id}")
+
+            # Check if call should be reset (no participants left)
+            call = await collection.find_one({"_id": ObjectId(call_id)})
+            if call and len(call.get("participants", [])) == 0:
+                await collection.update_one(
+                    {"_id": ObjectId(call_id)},
+                    {
+                        "$set": {
+                            "status": "waiting",
+                            "started_at": None
+                        }
+                    }
+                )
+                print(f"Call {call_id} reset to waiting (no participants after disconnect)")
+
+        except Exception as e:
+            print(f"Error cleaning up video call on disconnect: {e}")
+
+        # Notify others in the room about the disconnection
+        await sio.emit('webrtc_user_left', {
+            'userId': user_id
+        }, room=f"webrtc_call_{call_id}")
 
 @sio.event
 async def send_message(sid, data):
@@ -240,8 +288,48 @@ async def join_webrtc_call(sid, data):
 
     print(f"User {username} joining WebRTC call {call_id}")
 
+    # Track this connection
+    active_video_calls[sid] = (call_id, user_id, username)
+
     # Join the socket room for this call
     await sio.enter_room(sid, f"webrtc_call_{call_id}")
+
+    # Update database: add participant to the call
+    try:
+        from app.database import get_collection
+        from bson import ObjectId
+        from datetime import datetime
+
+        collection = get_collection("video_calls")
+
+        # Add participant if not already in the call
+        participant = {
+            "user_id": ObjectId(user_id),
+            "username": username,
+            "joined_at": datetime.utcnow()
+        }
+
+        # Remove any existing participant with same user_id to avoid duplicates
+        await collection.update_one(
+            {"_id": ObjectId(call_id)},
+            {"$pull": {"participants": {"user_id": ObjectId(user_id)}}}
+        )
+
+        # Add the participant
+        await collection.update_one(
+            {"_id": ObjectId(call_id)},
+            {
+                "$addToSet": {"participants": participant},
+                "$set": {
+                    "status": "active",
+                    "started_at": datetime.utcnow()
+                }
+            }
+        )
+        print(f"Updated DB: Added participant {username} to call {call_id}")
+
+    except Exception as e:
+        print(f"Error updating DB for join: {e}")
 
     # Notify others in the room
     await sio.emit('webrtc_user_joined', {
@@ -257,8 +345,44 @@ async def leave_webrtc_call(sid, data):
 
     print(f"User {user_id} leaving WebRTC call {call_id}")
 
+    # Remove from tracking
+    if sid in active_video_calls:
+        del active_video_calls[sid]
+
     # Leave the socket room for this call
     await sio.leave_room(sid, f"webrtc_call_{call_id}")
+
+    # Update database: remove participant from the call
+    try:
+        from app.database import get_collection
+        from bson import ObjectId
+        from datetime import datetime
+
+        collection = get_collection("video_calls")
+
+        # Remove participant
+        result = await collection.update_one(
+            {"_id": ObjectId(call_id)},
+            {"$pull": {"participants": {"user_id": ObjectId(user_id)}}}
+        )
+        print(f"Updated DB: Removed participant {user_id} from call {call_id}")
+
+        # Check if call should be ended (no participants left)
+        call = await collection.find_one({"_id": ObjectId(call_id)})
+        if call and len(call.get("participants", [])) == 0:
+            await collection.update_one(
+                {"_id": ObjectId(call_id)},
+                {
+                    "$set": {
+                        "status": "waiting",  # Reset to waiting instead of ended for meeting rooms
+                        "started_at": None    # Reset start time
+                    }
+                }
+            )
+            print(f"Call {call_id} reset to waiting (no participants)")
+
+    except Exception as e:
+        print(f"Error updating DB for leave: {e}")
 
     # Notify others in the room
     await sio.emit('webrtc_user_left', {
