@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import connect_to_mongo, close_mongo_connection
-from app.routers import posts, comments, chat, files, auth, categories, notifications, news, activity_logs, backup, dropbox_oauth, telegram, video_calls
+from app.routers import posts, comments, chat, files, auth, categories, notifications, news, activity_logs, backup, dropbox_oauth, telegram, video_calls, calendar
 from app.services.scheduler_service import scheduler_service
 from app.services.telegram_service import telegram_service
 from app.database import get_collection
@@ -69,6 +69,7 @@ app.include_router(backup.router, prefix="/backup", tags=["backup"])
 app.include_router(dropbox_oauth.router, tags=["dropbox-oauth"])
 app.include_router(telegram.router, tags=["telegram"])
 app.include_router(video_calls.router, prefix="/video-calls", tags=["video_calls"])
+app.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 
 socket_app = socketio.ASGIApp(sio, app)
 
