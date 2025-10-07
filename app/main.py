@@ -281,6 +281,64 @@ async def video_call_signal(sid, data):
 
 # WebRTC signaling events
 @sio.event
+async def join_webrtc_room(sid, data):
+    """Handle user joining WebRTC room (new multi-participant format)"""
+    call_id = data.get('callId')
+    user_id = data.get('userId')
+    username = data.get('username')
+
+    print(f"User {username} joining WebRTC room {call_id}")
+
+    # Track this connection
+    active_video_calls[sid] = (call_id, user_id, username)
+
+    # Join the socket room for this call
+    await sio.enter_room(sid, f"webrtc_call_{call_id}")
+
+    # Update database: add participant to the call
+    try:
+        from app.database import get_collection
+        from bson import ObjectId
+        from datetime import datetime
+
+        collection = get_collection("video_calls")
+
+        # Add participant if not already in the call
+        participant = {
+            "user_id": ObjectId(user_id),
+            "username": username,
+            "joined_at": datetime.utcnow()
+        }
+
+        # Remove any existing participant with same user_id to avoid duplicates
+        await collection.update_one(
+            {"_id": ObjectId(call_id)},
+            {"$pull": {"participants": {"user_id": ObjectId(user_id)}}}
+        )
+
+        # Add the participant
+        await collection.update_one(
+            {"_id": ObjectId(call_id)},
+            {
+                "$addToSet": {"participants": participant},
+                "$set": {
+                    "status": "active",
+                    "started_at": datetime.utcnow()
+                }
+            }
+        )
+        print(f"Updated DB: Added participant {username} to call {call_id}")
+
+    except Exception as e:
+        print(f"Error updating DB for join: {e}")
+
+    # Notify others in the room
+    await sio.emit('webrtc_user_joined', {
+        'userId': user_id,
+        'username': username
+    }, room=f"webrtc_call_{call_id}", skip_sid=sid)
+
+@sio.event
 async def join_webrtc_call(sid, data):
     """Handle user joining WebRTC call"""
     call_id = data.get('callId')
@@ -339,6 +397,61 @@ async def join_webrtc_call(sid, data):
     }, room=f"webrtc_call_{call_id}", skip_sid=sid)
 
 @sio.event
+async def leave_webrtc_room(sid, data):
+    """Handle user leaving WebRTC room (new multi-participant format)"""
+    call_id = data.get('callId')
+    user_id = data.get('userId')
+
+    print(f"User {user_id} leaving WebRTC room {call_id}")
+
+    # Get username before removing from tracking
+    username = None
+    if sid in active_video_calls:
+        username = active_video_calls[sid][2]
+        del active_video_calls[sid]
+
+    # Leave the socket room for this call
+    await sio.leave_room(sid, f"webrtc_call_{call_id}")
+
+    # Update database: remove participant from the call
+    try:
+        from app.database import get_collection
+        from bson import ObjectId
+        from datetime import datetime
+
+        collection = get_collection("video_calls")
+
+        # Remove participant
+        result = await collection.update_one(
+            {"_id": ObjectId(call_id)},
+            {"$pull": {"participants": {"user_id": ObjectId(user_id)}}}
+        )
+        print(f"Updated DB: Removed participant {user_id} from call {call_id}")
+
+        # Check if call should be ended (no participants left)
+        call = await collection.find_one({"_id": ObjectId(call_id)})
+        if call and len(call.get("participants", [])) == 0:
+            await collection.update_one(
+                {"_id": ObjectId(call_id)},
+                {
+                    "$set": {
+                        "status": "waiting",  # Reset to waiting instead of ended for meeting rooms
+                        "started_at": None    # Reset start time
+                    }
+                }
+            )
+            print(f"Reset call {call_id} to waiting state (no participants left)")
+
+    except Exception as e:
+        print(f"Error updating DB for leave: {e}")
+
+    # Notify others in the room
+    await sio.emit('webrtc_user_left', {
+        'userId': user_id,
+        'username': username or 'Unknown'
+    }, room=f"webrtc_call_{call_id}")
+
+@sio.event
 async def leave_webrtc_call(sid, data):
     """Handle user leaving WebRTC call"""
     call_id = data.get('callId')
@@ -395,45 +508,81 @@ async def webrtc_offer(sid, data):
     """Handle WebRTC offer"""
     call_id = data.get('callId')
     offer = data.get('offer')
-    user_id = data.get('userId')
+    from_user_id = data.get('fromUserId')
+    target_user_id = data.get('targetUserId')
 
-    print(f"Received WebRTC offer from {user_id} for call {call_id}")
+    print(f"Received WebRTC offer from {from_user_id} to {target_user_id} for call {call_id}")
 
-    # Forward offer to others in the room
-    await sio.emit('webrtc_offer', {
-        'offer': offer,
-        'userId': user_id
-    }, room=f"webrtc_call_{call_id}", skip_sid=sid)
+    # Find target user's socket ID
+    target_socket_id = None
+    for socket_id, (stored_call_id, stored_user_id, username) in active_video_calls.items():
+        if stored_user_id == target_user_id and stored_call_id == call_id:
+            target_socket_id = socket_id
+            break
+
+    if target_socket_id:
+        # Send offer directly to target user
+        await sio.emit('webrtc_offer', {
+            'offer': offer,
+            'fromUserId': from_user_id
+        }, room=target_socket_id)
+        print(f"Forwarded offer from {from_user_id} to {target_user_id}")
+    else:
+        print(f"Target user {target_user_id} not found in active calls")
 
 @sio.event
 async def webrtc_answer(sid, data):
     """Handle WebRTC answer"""
     call_id = data.get('callId')
     answer = data.get('answer')
-    user_id = data.get('userId')
+    from_user_id = data.get('fromUserId')
+    target_user_id = data.get('targetUserId')
 
-    print(f"Received WebRTC answer from {user_id} for call {call_id}")
+    print(f"Received WebRTC answer from {from_user_id} to {target_user_id} for call {call_id}")
 
-    # Forward answer to others in the room
-    await sio.emit('webrtc_answer', {
-        'answer': answer,
-        'userId': user_id
-    }, room=f"webrtc_call_{call_id}", skip_sid=sid)
+    # Find target user's socket ID
+    target_socket_id = None
+    for socket_id, (stored_call_id, stored_user_id, username) in active_video_calls.items():
+        if stored_user_id == target_user_id and stored_call_id == call_id:
+            target_socket_id = socket_id
+            break
+
+    if target_socket_id:
+        # Send answer directly to target user
+        await sio.emit('webrtc_answer', {
+            'answer': answer,
+            'fromUserId': from_user_id
+        }, room=target_socket_id)
+        print(f"Forwarded answer from {from_user_id} to {target_user_id}")
+    else:
+        print(f"Target user {target_user_id} not found in active calls")
 
 @sio.event
 async def webrtc_ice_candidate(sid, data):
     """Handle WebRTC ICE candidate"""
     call_id = data.get('callId')
     candidate = data.get('candidate')
-    user_id = data.get('userId')
+    from_user_id = data.get('fromUserId')
+    target_user_id = data.get('targetUserId')
 
-    print(f"Received ICE candidate from {user_id} for call {call_id}")
+    print(f"Received ICE candidate from {from_user_id} to {target_user_id} for call {call_id}")
 
-    # Forward ICE candidate to others in the room
-    await sio.emit('webrtc_ice_candidate', {
-        'candidate': candidate,
-        'userId': user_id
-    }, room=f"webrtc_call_{call_id}", skip_sid=sid)
+    # Find target user's socket ID
+    target_socket_id = None
+    for socket_id, (stored_call_id, stored_user_id, username) in active_video_calls.items():
+        if stored_user_id == target_user_id and stored_call_id == call_id:
+            target_socket_id = socket_id
+            break
+
+    if target_socket_id:
+        # Send ICE candidate directly to target user
+        await sio.emit('webrtc_ice_candidate', {
+            'candidate': candidate,
+            'fromUserId': from_user_id
+        }, room=target_socket_id)
+        print(f"Forwarded ICE candidate from {from_user_id} to {target_user_id}")
+    else:
+        print(f"Target user {target_user_id} not found in active calls")
 
 @sio.event
 async def webrtc_screen_share_status(sid, data):
