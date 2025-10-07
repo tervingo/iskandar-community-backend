@@ -332,11 +332,30 @@ async def join_webrtc_room(sid, data):
     except Exception as e:
         print(f"Error updating DB for join: {e}")
 
-    # Notify others in the room
+    # Get list of users already in the room (before notifying about new user)
+    existing_users = []
+    for socket_id, (stored_call_id, stored_user_id, stored_username) in active_video_calls.items():
+        if stored_call_id == call_id and socket_id != sid:  # Don't include the new user
+            existing_users.append({
+                'userId': stored_user_id,
+                'username': stored_username
+            })
+
+    print(f"Existing users in room {call_id}: {existing_users}")
+
+    # Send existing users list to the new user
+    if existing_users:
+        for existing_user in existing_users:
+            await sio.emit('webrtc_user_joined', existing_user, room=sid)
+            print(f"Sent existing user {existing_user['username']} to new user {username}")
+
+    # Notify others in the room about the new user
     await sio.emit('webrtc_user_joined', {
         'userId': user_id,
         'username': username
     }, room=f"webrtc_call_{call_id}", skip_sid=sid)
+
+    print(f"Notified room about new user {username}")
 
 @sio.event
 async def join_webrtc_call(sid, data):
